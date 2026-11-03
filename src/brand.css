@@ -1,0 +1,52 @@
+/* Barevná vrstva odvozená od dodané reference Addvery. Bez obrázků a bez převzetí loga. */
+:root{color:#f9f7fc;background:#050506}
+body{background:radial-gradient(ellipse 23% 24% at 15% 25%,#8e2eb436 0,transparent 80%),radial-gradient(ellipse 32% 30% at 77% 20%,#7124ad30 0,transparent 85%),#050506}
+.topbar{border-color:#241b2b}
+.brand{color:#fff;font-size:18px;letter-spacing:-.04em;font-weight:700}
+.brand strong{font-size:12px;font-weight:500;color:#aaa0b5;letter-spacing:.01em}
+.brand-mark{width:32px;height:32px;background:linear-gradient(135deg,#6e2df0,#b43bef);color:#fff;font-size:16px;font-weight:700;letter-spacing:-.07em;border-radius:7px}
+.top-right{color:#ad9fba}
+.live-dot{background:#b84bfa;box-shadow:0 0 0 4px #a635f42a}
+.eyebrow,.section-index{color:#ca86fa}
+.eyebrow-line{background:#ca86fa}
+h1{font-weight:700;letter-spacing:-.07em;color:#fff}
+h1 em{font-family:'DM Sans',system-ui,sans-serif;font-style:normal;font-weight:700;color:#fff;letter-spacing:-.07em}
+.hero-copy{color:#b9aebf}
+.input-panel,.detail-panel,.report-section,.agent-card{background:#0d0b10;border-color:#302536}
+.input-panel{box-shadow:0 25px 70px #0009}
+.section-head h2,.agent-card h3,.detail-title h3{color:#faf8fc}
+.panel-hint,.agent-number,.detail-title span{color:#9b8ca6}
+textarea,.key-wrap input,.report{background:#08070a;border-color:#3b2a46;color:#f9f6fb}
+textarea:focus,.key-wrap input:focus{border-color:#aa47ec;box-shadow:0 0 0 3px #a53bef30}
+textarea::placeholder,input::placeholder{color:#75677e}
+.examples span,.key-wrap small,.mode-switch small{color:#94849e}
+.examples button,.text-button{background:#17101d;border-color:#493258;color:#d9c7e5}
+.examples button:hover,.text-button:hover{border-color:#a945e7;color:#fff}
+.form-bottom,.agent-step,.agent-card details,.detail-title{border-color:#302536}
+.mode-switch{color:#f8f2fa}
+.switch-track{background:#55445e}
+.mode-switch input:checked+.switch-track{background:#9d36ed}
+.mode-switch input:checked+.switch-track:before{background:#fff}
+.key-wrap{color:#d6c9de}
+.submit{background:linear-gradient(100deg,#6b2eea,#b537ed);color:#fff;box-shadow:0 9px 30px #8d2be243}
+.submit:hover{background:linear-gradient(100deg,#7b39f4,#c044f5)}
+.status-pill{border-color:#4b3657;color:#d4c3de}
+.status-pill.active{color:#e7bbff;border-color:#9a47ce}
+.status-pill.error{color:#ffc6c1;border-color:#9b5065}
+.agent-card.active{border-color:#a54bea;box-shadow:0 0 0 1px #9d3bdf33,0 18px 45px #4e12653d}
+.agent-card.done{border-color:#6e3a85}
+.agent-state{color:#c4b2cf;background:#24182d}
+.agent-card.active .agent-state{color:#fff;background:#8f31d9}
+.agent-card.done .agent-state{color:#e7bbfa;background:#392044}
+.agent-icon{color:#c06bf5}
+.agent-card p{color:#a998b1}
+.agent-step{color:#d3c4da}
+.agent-card summary,.timeline .tag,.sources .source-id{color:#cb80f8}
+.agent-output,.timeline li{color:#d6c8de}
+.timeline li,.sources li{border-color:#271c2d}
+.timeline .time,.sources .source-meta{color:#917f9b}
+.sources li{color:#bdafc5}
+.sources a{color:#f2dfff}
+.sources a:hover{color:#d38bf9}
+.report{color:#f0e6f5}
+footer{color:#877690}

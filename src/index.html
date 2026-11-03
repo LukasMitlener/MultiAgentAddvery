@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#050507">
+  <title>Výzkumná laboratoř · Multi-agentní asistent</title>
+  <meta name="description" content="Sledujte práci čtyř výzkumných agentů, jejich nástroje a předávání výsledků v reálném čase.">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Addvery Research Lab, úvod"><span class="brand-mark">A.</span><span>Addvery <strong>/ Research Lab</strong></span></a>
+      <div class="top-right"><span class="live-dot"></span> 4 agenti · 1 společný úkol</div>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="eyebrow"><span class="eyebrow-line"></span> ADDVERY · AGENTNÍ VÝZKUM V PŘÍMÉM PŘENOSU</div>
+        <h1 id="hero-title">Od otázky k odpovědi.<br><em>Krok za krokem.</em></h1>
+        <p class="hero-copy">Zadejte téma a sledujte, jak výzkumník hledá zdroje, hodnotitel prověřuje jejich kvalitu, analytik skládá závěry a autor připravuje odpověď.</p>
+      </section>
+
+      <section class="input-panel" aria-labelledby="ask-title">
+        <div class="section-head"><div><span class="section-index">01 / ZADÁNÍ</span><h2 id="ask-title">Co chcete prozkoumat?</h2></div><span class="panel-hint">Jedna konkrétní otázka funguje nejlépe</span></div>
+        <form id="research-form">
+          <label class="sr-only" for="topic">Výzkumné téma nebo otázka</label>
+          <textarea id="topic" name="topic" rows="3" minlength="5" maxlength="500" required placeholder="Například: Jak se změnilo využití obnovitelných zdrojů v Evropě za posledních deset let?"></textarea>
+          <div class="examples"><span>Zkuste:</span><button type="button" data-example="Jaké jsou hlavní výhody a limity tepelných čerpadel v domácnostech?">Tepelná čerpadla</button><button type="button" data-example="Jaké jsou současné poznatky o dopadech mikroplastů na lidské zdraví?">Mikroplasty a zdraví</button><button type="button" data-example="Jaké jsou hlavní příčiny úbytku opylovačů v Evropě?">Úbytek opylovačů</button></div>
+          <div class="form-bottom">
+            <div class="auth-controls">
+              <label class="mode-switch"><input type="checkbox" id="demo"><span class="switch-track"></span><span>Ukázkový režim <small>bez AI klíče</small></span></label>
+              <label class="key-wrap" id="key-wrap"><span>Claude API klíč</span><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Volitelné, pokud je nastaven na serveru"><small>Vlastní klíč se odešle jen při tomto běhu a neukládá se.</small></label>
+            </div>
+            <button class="submit" id="submit" type="submit"><span>Spustit výzkum</span><span aria-hidden="true">↗</span></button>
+          </div>
+        </form>
+        <p id="form-error" class="form-error" role="alert" hidden></p>
+      </section>
+
+      <section class="work-section" id="work-section" aria-labelledby="work-title">
+        <div class="section-head"><div><span class="section-index">02 / PRŮBĚH</span><h2 id="work-title">Uvnitř týmu</h2></div><span id="run-status" class="status-pill">Připraveno</span></div>
+        <div class="agent-grid" id="agent-grid">
+          <article class="agent-card" data-agent="research"><div class="agent-top"><span class="agent-number">01</span><span class="agent-state">Čeká</span></div><div class="agent-icon">⌕</div><h3>Výzkumník</h3><p>Vyhledá externí zdroje a sestaví první poznatky.</p><div class="agent-step">Čeká na zadání</div><details><summary>Zobrazit výstup</summary><pre class="agent-output"></pre></details></article>
+          <article class="agent-card" data-agent="critic"><div class="agent-top"><span class="agent-number">02</span><span class="agent-state">Čeká</span></div><div class="agent-icon">◇</div><h3>Hodnotitel</h3><p>Pomocí projektového Skillu prověří zdroje a tvrzení.</p><div class="agent-step">Čeká na výzkum</div><details><summary>Zobrazit výstup</summary><pre class="agent-output"></pre></details></article>
+          <article class="agent-card" data-agent="analyst"><div class="agent-top"><span class="agent-number">03</span><span class="agent-state">Čeká</span></div><div class="agent-icon">∴</div><h3>Analytik</h3><p>Najde souvislosti, rozpory a meze dostupných důkazů.</p><div class="agent-step">Čeká na hodnocení</div><details><summary>Zobrazit výstup</summary><pre class="agent-output"></pre></details></article>
+          <article class="agent-card" data-agent="writer"><div class="agent-top"><span class="agent-number">04</span><span class="agent-state">Čeká</span></div><div class="agent-icon">✎</div><h3>Autor</h3><p>Napíše strukturovanou odpověď s odkazy a omezeními.</p><div class="agent-step">Čeká na analýzu</div><details><summary>Zobrazit výstup</summary><pre class="agent-output"></pre></details></article>
+        </div>
+        <div class="detail-grid">
+          <div class="detail-panel"><div class="detail-title"><h3>Živý záznam</h3><span id="event-count">0 událostí</span></div><ol id="timeline" class="timeline"><li class="empty">Po spuštění zde uvidíte každý krok a předání.</li></ol></div>
+          <div class="detail-panel"><div class="detail-title"><h3>Nalezené zdroje</h3><span id="source-count">0 zdrojů</span></div><ul id="sources" class="sources"><li class="empty">Zdroje se zobrazí po volání nástroje.</li></ul></div>
+        </div>
+      </section>
+
+      <section class="report-section" aria-labelledby="report-title"><div class="section-head"><div><span class="section-index">03 / VÝSLEDEK</span><h2 id="report-title">Závěrečná zpráva</h2></div><button id="download" class="text-button" type="button" disabled>Stáhnout .md ↓</button></div><pre id="report" class="report empty-report">Zpráva se objeví po dokončení práce všech čtyř agentů.</pre></section>
+    </main>
+
+    <footer><span>Koncept pro Addvery · demonstrace explicitní multi-agentní orchestrace.</span><span>Perplexity Search API · Claude Messages API · projektový Skill</span></footer>
+  </div>
+</body>
+</html>
