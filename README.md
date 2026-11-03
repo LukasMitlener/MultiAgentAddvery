@@ -49,6 +49,9 @@ api/run.mjs, api/health.mjs                Vercel Functions adapter
 scripts/build.mjs                          sestavení balíčku bez závislostí
 scripts/dev.mjs                            místní server
 tests/pipeline.test.mjs                    test handoffů, Skillu a tool callu
+REQUIREMENTS_EVIDENCE.md                    kontrola zadání bod po bodu s důkazy
+SECURITY_REVIEW.md                          bezpečnostní revize a plán dalších testů
+package-lock.json                           uzamčené závislosti pro audit
 .openai/hosting.json                       konfigurace aktuální ukázky v Sites
 vercel.json                                konfigurace Vercel buildu
 .vercelignore                             vyloučení lokálních klíčů z CLI uploadu
@@ -62,7 +65,7 @@ npm test
 npm run build
 ```
 
-Test používá náhradní odpovědi externích API a kontroluje, že výzkumník vyvolá tool, Perplexity Search dodá zdroje s ID, hodnotitel obdrží Skill, správné modely jsou přiřazeny rolím a analytik i autor skutečně dostanou data předchozího kroku. Pro ověření živého AI běhu vložte oba klíče do `.env.local` a spusťte výzkum v UI.
+Test používá náhradní odpovědi externích API a kontroluje, že výzkumník vyvolá tool, Perplexity Search dodá zdroje s ID, hodnotitel obdrží Skill, správné modely jsou přiřazeny rolím a analytik i autor skutečně dostanou data předchozího kroku. Testuje také nepovolený původ požadavku, typ a velikost těla, nebezpečné odkazy, bezpečný chybový výstup a datovou hranici při podvrženém úryvku vyhledávání. Pro ověření živého AI běhu vložte oba klíče do `.env.local` a spusťte výzkum v UI.
 
 ## API a bezpečnost
 
@@ -70,8 +73,11 @@ Test používá náhradní odpovědi externích API a kontroluje, že výzkumní
 - `GET /api/health` vrací základní stav aplikace.
 - Claude se volá přes `POST https://api.anthropic.com/v1/messages`, s top-level `system`, `messages`, `tools` a `tool_choice`. Klíč se nikdy neposílá do výstupních událostí.
 - Vyhledávání volá přímo `POST https://api.perplexity.ai/search` s `PERPLEXITY_API_KEY`. Výsledky `results[]` se převádějí na zdroje `S1`, `S2` atd.
-- Výsledky vyhledávání jsou nedůvěryhodný vstup. UI je vykresluje přes `textContent`, URL zdrojů se omezuje na HTTP(S) a Skill ukládá povinnost přiznat nejistotu.
-- Aplikace nezachovává historii běhů. Pro veřejné nasazení se serverovým klíčem doplňte autentizaci a omezení počtu požadavků, nebo používejte klíč zadaný uživatelem.
+- Výsledky vyhledávání jsou nedůvěryhodný vstup. UI je vykresluje přes `textContent`, URL zdrojů se omezuje na HTTP(S), systémové prompty upozorňují na prompt injection a Skill ukládá povinnost přiznat nejistotu.
+- Vstup API se kontroluje na typ, délku a původ prohlížeče; bezpečnostní hlavičky nastavuje `vercel.json`.
+- Aplikace nezachovává historii běhů. Veřejné demo používá serverový klíč bez přihlášení a kvóty. Zvážený Vercel limit nebyl na přání zadavatele aktivován, aby neomezil testování; důvody, zbytkové riziko a další návrhy jsou v [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
+
+Kontrola všech bodů zadání s odkazy na důkazy je v [REQUIREMENTS_EVIDENCE.md](REQUIREMENTS_EVIDENCE.md).
 
 Referenční dokumentace: [Claude Messages API](https://platform.claude.com/docs/en/api/messages/create), [tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls), [Perplexity Search API](https://docs.perplexity.ai/api-reference/search-post).
 
