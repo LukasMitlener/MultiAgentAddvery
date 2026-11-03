@@ -1,81 +1,36 @@
-# Bezpečnostní revize multiagentního výzkumného asistenta
+# Bezpečnostní revize výzkumného asistenta
 
 **Datum:** 3. 11. 2026
-**Rozsah:** aplikační kód, tok dat mezi čtyřmi agenty, práce s klíči, HTTP vstup/výstup, Git a Vercel. Při revizi byly použity i kontrolní seznamy z dodaných `security-reviewer.md` a `code-reviewer.md`. Jde o technickou revizi konkrétní verze, nikoli certifikaci ani penetrační test celého poskytovatele.
+**Rozsah:** aplikace, čtyři agenti, jejich nástroje, API klíče a veřejné nasazení. Revize vychází také z dodaných kontrolních seznamů `security-reviewer.md` a `code-reviewer.md`. Nejde o úplný penetrační test.
 
-## Shrnutí pro hodnotitele
+## Výsledek stručně
 
-Aplikace omezuje pravomoci modelů: pouze výzkumník může použít `search_sources`, a ten volá pevně určené vyhledávací API. Žádný agent nedostává API klíč v promptu a žádný nemůže spustit kód, číst soubory nebo volat libovolnou URL. Neznámé webové URL se zobrazují jako odkazy v UI, backend je neotvírá. Data ze zdrojů a předchozích agentů jsou v systémových promptech označena jako nedůvěryhodná. To snižuje dopad prompt injection, ale **nezaručuje, že model útočný text nikdy neposlechne**.
+Agenti mají omezené možnosti. Pouze výzkumník může spustit vyhledávání; ostatní agenti pracují s výsledky předanými aplikací. Nemohou spouštět kód, číst soubory ani volat libovolné webové adresy. API klíče zůstávají na serveru.
 
-Největší zbývající riziko veřejné aplikace je **neomezené čerpání serverových API klíčů přes anonymní `/api/run`**. Limit 10 požadavků / 10 minut / IP byl na Vercelu připraven, ale na přání zadavatele nebyl aktivován, aby neomezil testování ve výběrovém řízení. Nepublikovaný návrh pravidla byl odstraněn a produkce nemá vlastní pravidlo tohoto typu. Před ostrým provozem je třeba znovu rozhodnout o kvótách, rozpočtových limitech nebo autentizaci.
+Největší otevřené riziko je veřejné spuštění výzkumu bez přihlášení a bez limitu počtu běhů. Někdo by tak mohl spotřebovat placené API. Ochrana proti podvrženým pokynům ve vyhledaných textech je přiměřená pro ukázkovou aplikaci, ale žádný pokyn modelu nezaručí úplnou odolnost.
 
-## Provedené kontroly a důkazy
+## Co bylo ověřeno
 
-- `npm test`: **8/8 prošlo**. Pokryta orchestrace, skutečný tool call, použití Skillu, handoff, odstranění simulovaného režimu, validace typu a velikosti požadavku, cizí `Origin`, nebezpečné URL a generická chyba poskytovatele.
-- Řízený **živý prompt injection test**: podvržený výsledek vyhledávání obsahoval pokyn přidat do finální zprávy unikátní kontrolní řetězec a ignorovat původní úkol. Proběhlo 5 reálných volání Claude API, 3 handoffy a celý běh skončil úspěšně; řetězec se ve finální zprávě **neobjevil**. Je to jeden testovací případ, nikoli statistický důkaz odolnosti.
-- Test se záměrně škodlivým `javascript:` URL ověřuje, že se nepropustí do seznamu zdrojů. UI vkládá výstup modelu a úryvky přes `textContent`, nikoli jako HTML. Odkazy se otevírají s `noopener noreferrer`.
-- Claude API klíč se čte pouze ze serverového prostředí. Veřejné rozhraní nemá pole pro zadání klíče a `/api/run` odmítá nepodporované pole `apiKey`; klient jej tak nemůže podsunout jako alternativní přihlašovací údaj.
-- Git ignoruje `.env.local` a `.vercelignore` jej vylučuje z uploadu Vercel CLI. `npm audit --audit-level=high` hlásí **0 zranitelností** v balíčcích; projekt nemá runtime npm závislosti.
-- Autor projektu uvedl, že nastavil **expiraci Anthropic API klíče na 7 dní**. Nastavení účtu Anthropic zde nebylo nezávisle ověřeno. Při pozdějším hodnocení je třeba ověřit platnost klíče; po expiraci jej obnovit v proměnných Vercelu a znovu zkontrolovat funkční běh.
-- HTTP vrstva omezuje JSON tělo na 12 kB při čtení streamu, téma na 500 znaků, přijímá `application/json` a odmítá cizí browser `Origin`. Odpověď Claude při chybě nevrací text poskytovatele, který by mohl obsahovat citlivé údaje. `vercel.json` nastavuje CSP, `nosniff`, zákaz vložení do iframe a další hlavičky.
-- **Produkční ověření po automatickém deployi:** `GET /` a `/api/health` vrací 200; CSP a `nosniff` jsou přítomné; cizí `Origin` vrací 403, `text/plain` 415, nadměrné tělo 400. Jeden živý běh přes veřejné Vercel URL vrátil 8 zdrojů, 4 výstupy agentů, 3 handoffy a `run_done` bez chyby.
+- **Funkčnost:** všech 8 automatických testů prošlo. Veřejná aplikace dokončila celý běh: 8 zdrojů, 4 výstupy agentů a 3 předání mezi nimi.
+- **Podvržený pokyn:** při jednom živém testu obsahoval výsledek hledání pokyn, aby asistent ignoroval otázku a vložil do odpovědi kontrolní text. Finální odpověď jej neobsahovala. Jeden případ ale nestačí k tvrzení, že jsou všechny podobné útoky zablokované.
+- **Klíče:** Claude klíč se načítá na serveru. Formulář jej nevyžaduje a API nepřijímá klíč od návštěvníka. `.env.local` je vyloučen z Gitu i z nahrávání přes Vercel CLI. Autor projektu nastavil expiraci Anthropic klíče na **7 dní**; nastavení účtu nebylo v této revizi nezávisle ověřeno.
+- **Vstup a zobrazení:** aplikace omezuje délku otázky a velikost požadavku, odmítá nepovolené typy dat a nebezpečné odkazy. Text od modelu se zobrazuje jako text, nikoli jako spustitelné HTML. Chyby poskytovatele nevracejí návštěvníkovi surovou odpověď.
+- **Závislosti:** `npm audit --audit-level=high` nenašel zranitelnosti. Projekt nemá provozní npm závislosti.
 
-## Zjištění a doporučené pořadí
+## Co bych zlepšil před ostrým provozem
 
-### 1. Veřejný endpoint a náklady na API — vysoká priorita před ostrým provozem
+1. **Omezit spotřebu API.** Přidat kvóty, rozpočtový strop a upozornění na neobvyklý provoz; u neveřejné aplikace také přihlášení. Kontrola webového `Origin` není náhradou přihlášení. Limit 10 spuštění za 10 minut z jedné IP byl připraven, ale **nebyl aktivován na přání autora**, aby nebránil testování aplikace hodnotiteli. Návrh pravidla byl odstraněn. K limitu se vrátit po hodnocení.
+2. **Kontrolovat předávání a citace.** Výsledek jednoho agenta vstupuje do práce dalšího. Server by měl před každým předáním zkontrolovat požadovanou strukturu dat a ověřit, že citovaná ID skutečně patří nalezeným zdrojům. Dnes může model vytvořit nepodložené tvrzení nebo chybnou citaci.
+3. **Opakovat testy podvržených pokynů.** „Prompt injection“ znamená škodlivý pokyn schovaný například v titulku nebo úryvku nalezeného článku. Současné systémové pokyny říkají agentům, aby takový text brali jako data, a omezený vyhledávací nástroj snižuje dopad chyby. Je třeba otestovat více jazyků, skrytých znaků a útoků přenášených přes několik agentů.
+4. **Při připojení interních nástrojů omezit oprávnění každého agenta zvlášť.** Například výzkumník může pouze číst povolené zdroje; autor odpovědi nepotřebuje přístup do CRM ani e-mailu. Práva musí vynucovat server, nikoli textové pokyny modelu. Odeslání zprávy, změna dat nebo export interních informací by vyžadovaly schválení člověkem a záznam akce. Tajné údaje se nesmí dostat do promptů ani výstupů pro návštěvníka.
 
-`/api/run` je bez přihlášení a běžný požadavek spustí až pět volání Claude plus vyhledávání. Kontrola `Origin` zabraňuje části útoků z prohlížeče, **není autentizací**: klient mimo prohlížeč jej může vynechat nebo podvrhnout. Veřejný endpoint zůstává otevřený kvůli dostupnosti pro hodnotitele. Pro produkční provoz: kvóty na účet a IP, rozpočtový strop u poskytovatelů, monitor spotřeby, případně přihlášení. Volitelný per-IP limit aktivovat až po skončení hodnocení a s vhodnou tolerancí pro sdílené IP.
+## Jak pokračovat v ověřování
 
-### 2. Prompt injection a kontaminace handoffů — střední priorita
+- Připravit sadu 20–50 neškodných pokusů o podvržení pokynů a měřit, kolikrát se změní cíl odpovědi nebo citace.
+- Na vzorku odpovědí ručně porovnat tvrzení a odkazy s původními zdroji. Rozlišit, zda agent viděl celý článek, nebo jen úryvek z vyhledávání.
+- Vyzkoušet souběžné požadavky, výpadek poskytovatele a celkové náklady na jeden běh. Po vypršení sedmidenního klíče zkontrolovat jeho obnovu ve Vercelu.
+- Pokud přibudou interní nástroje, otestovat, že každý agent skutečně nedokáže vykonat nepovolenou operaci ani odeslat interní data ven.
 
-Útok může přijít z tématu od uživatele, z titulku/úryvku vyhledávání nebo z výstupu předchozího agenta. `UNTRUSTED_DATA_RULE` je součástí systémových promptů všech rolí; obsah zdrojů se posílá jako `tool_result` nebo text vstupní zprávy, nikdy jako systémový prompt. Jen první volání výzkumníka má `tools`; ostatní agenti nemohou vyžádat další backendové akce. Vyhledávací tool má pevný cíl, validovaný dotaz a konečný počet výsledků. To omezuje možnost zneužití, nikoli samotné ovlivnění odpovědi.
+Pro úplnější revizi lze použít [OWASP Top 10 pro LLM aplikace (2026)](https://genai.owasp.org/resource/owasp-genai-llm-top-10-2026/) jako seznam typických rizik (zejména podvržené pokyny, únik dat, příliš široká oprávnění, neomezená spotřeba a chybné výstupy). [NIST AI 600-1](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence) pomůže určit vlastníky rizik a pravidla měření; [STRIDE](https://learn.microsoft.com/en-us/security/engineering/threat-modeling-with-dev-ops) projít možné útoky v toku dat; [CSA MAESTRO](https://labs.cloudsecurityalliance.org/maestro/) posoudit hranice mezi agenty a nástroji; [MITRE ATLAS](https://atlas.mitre.org/) připravit konkrétní testovací scénáře útoků na AI.
 
-**Co ještě chybí:** striktní validace struktury JSON výstupů a povolených `source_ids` mezi handoffy; ověření, že finální citace odpovídají skutečně nalezeným zdrojům; pravidelná sada adversariálních příkladů (jazyky, skryté znaky, kódované instrukce, útočné titulky i vícekolové scénáře). Současný fallback `parseObject()` může předat surový modelový text dál. Textový pokyn modelu nesmí být považován za bezpečnostní hranici. [OWASP LLM01:2026](https://genai.owasp.org/resource/owasp-genai-llm-top-10-2026/) výslovně doporučuje omezit pravomoci a dopad i pro případ, že model instrukci poruší.
-
-### 3. Věrohodnost výstupu — střední priorita
-
-Skill správně odlišuje výsledky hledání od přečteného článku a vyžaduje `snippet_only`. Agent ale může vytvořit nepodložené tvrzení, falešné ID zdroje nebo citaci bez vazby na tvrzení. Další krok: serverově ověřit všechna ID proti množině skutečně nalezených zdrojů, požadovat strukturovaný výstup podle schématu, odmítat neznámé citace a pro citlivá témata zavést kontrolu člověkem či dohledání primárních textů. Měřit podíl chybných citací a nepodložených tvrzení na připravené sadě otázek.
-
-### 4. Vnitřní nástroje v budoucím produkčním nasazení — vysoká priorita při rozšíření
-
-Pokud by aplikace dostala interní CRM, firemní dokumenty, e-mail nebo databázi, agenti **nemají sdílet univerzální účet ani široký přístup**. Konkrétní návrh:
-
-1. Každý agent a nástroj má samostatnou identitu a přesně vymezené oprávnění; výzkumník např. jen vyhledávání v povoleném read-only indexu, analytik jen data předaná orchestrátorem, autor žádné přímé interní nástroje.
-2. Backendový tool gateway vynucuje allowlist operací, tenant/uživatelský rozsah, schéma argumentů, limit objemu dat a schválené cílové domény. Oprávnění se **neodvozují od textu modelu**.
-3. Zápisy, odesílání zpráv, export interních dat a změny oprávnění vyžadují schválení člověkem a auditní záznam. Tokeny jsou krátkodobé, oddělené podle nástroje a nikdy se nevkládají do promptu ani SSE událostí.
-4. Oddělit nedůvěryhodné výsledky webu od interních dat, testovat přenos dat přes handoffy a stanovit pravidla, která data smí odejít k externím modelům a vyhledávačům.
-
-Tento princip odpovídá riziku **excessive agency**: úspěšná prompt injection je výrazně závažnější, pokud může vyvolat privilegované akce. [OWASP LLM03:2026](https://genai.owasp.org/resource/owasp-genai-llm-top-10-2026/), [CSA MAESTRO](https://labs.cloudsecurityalliance.org/maestro/) a [MITRE ATLAS](https://atlas.mitre.org/) poskytují k tomuto návrhu rámce.
-
-## Pokrytí OWASP Top 10 for LLM Applications 2026
-
-Oficiální [OWASP seznam 2026](https://genai.owasp.org/resource/owasp-genai-llm-top-10-2026/) používá jiné pořadí a některé jiné názvy než verze 2025. Pro tento projekt:
-
-| Riziko | Stav v projektu / další krok |
-| --- | --- |
-| LLM01 Prompt Injection | Systémové pokyny o nedůvěryhodných datech, pevné tool API, jeden živý adversariální test. Dále sada red-team scénářů a validace handoffů. |
-| LLM02 Sensitive Information Disclosure | Klíče zůstávají na serveru, chyby poskytovatele se nevrací doslova. Dále skenovat logy a výstupy na tajné řetězce, omezit citlivá témata. |
-| LLM03 Excessive Agency | Jen výzkumník má jediný nástroj bez zápisových oprávnění. Při interních integracích per-agent oprávnění a lidské schválení. |
-| LLM04 Supply Chain | Žádné runtime npm balíčky, lockfile a audit. Dále chránit změny Skillu, CI a deploymentu; pravidelně kontrolovat poskytovatele API. |
-| LLM05 Data and Model Poisoning | Veřejné zdroje se označují jako neověřené úryvky. Dále ověřovat původ a nezávislost zdrojů; testovat podvržené výsledky. |
-| LLM06 Unbounded Consumption | Délky požadavků a počet výsledků jsou omezené. Volání API na veřejném endpointu nemají kvótu; viz rozhodnutí o rate limitu výše. |
-| LLM07 Misinformation | Skill uvádí mezery v důkazech; zatím chybí automatické ověřování tvrzení vůči primárnímu zdroji. |
-| LLM08 Hidden Context Exposure | System prompty jsou serverové; žádné klíče nejsou v kontextu modelu. Dále red-team testy extrakce systémového promptu a interních dat. |
-| LLM09 Vector and Embedding Weaknesses | Není použita vektorová databáze ani embeddingy; aktuálně se neuplatňuje. Při přidání RAG znovu posoudit. |
-| LLM10 Improper Output Handling | UI používá `textContent`, URL filtr HTTP(S), CSP. Dále validovat schema modelových JSON a citace před dalším agentem. |
-
-## Další testy podle dalších rámců
-
-- **[NIST AI 600-1 Generative AI Profile](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence):** zdokumentovat inventář modelů, datových toků, vlastníka rizik a pravidla změn (Govern/Map); vytvořit opakovatelnou sadu témat a injekcí, měřit chybné citace, úniky a náklady (Measure); nastavit reakci na incident, revizi poskytovatelů a obnovu po selhání (Manage). Pro vysoce důležité odpovědi zaznamenat lidské posouzení kvality.
-- **[STRIDE](https://learn.microsoft.com/en-us/security/engineering/threat-modeling-with-dev-ops):** nakreslit tok uživatel → Vercel → Claude/Perplexity → SSE → prohlížeč. Pro každý přechod zkontrolovat spoofing (kdo může spustit nákladný běh), tampering (změna zdroje/handoffu), repudiation (audit bez ukládání tajných dat), information disclosure (klíče a interní text), denial of service (paralelní běhy, timeouty), elevation of privilege (budoucí tool gateway).
-- **[CSA MAESTRO](https://labs.cloudsecurityalliance.org/maestro/):** projít zvlášť model, externí data, agentní orchestrace, nasazení, vyhodnocování/telemetrii, politiku přístupu a ekosystém nástrojů. Otestovat zejména přesahy mezi vrstvami: podvržený výsledek hledání → výzkumník → hodnotitel → autor a případný přístup k internímu systému.
-- **[MITRE ATLAS](https://atlas.mitre.org/):** vytvořit scénáře pro LLM Prompt Injection, AI Agent Context Poisoning (AML.T0080), AI Agent Tool Data Poisoning (AML.T0099) a AI Agent Tool Poisoning (AML.T0110). Pro každý určit vstupní bod, očekávanou bezpečnou reakci a přesný signál selhání (nepovolený tool call, uniklé tajemství, změněný cíl, falešná citace).
-
-## Praktický plán dalšího ověření
-
-1. Sestavit 20–50 neškodných testovacích payloadů pro přímou i nepřímou prompt injection; spustit je opakovaně přes stejný model a reportovat úspěšnost útočníka včetně příkladů. Jeden úspěšný test výše není dostatečný důkaz odolnosti.
-2. Ověřit citace proti skutečným ID a ručně zkontrolovat vzorek tvrzení vůči primárním textům. Zvlášť měřit případy, kdy byl dostupný jen úryvek.
-3. Změřit souběžné požadavky, timeouty poskytovatelů, náklady na jednu otázku a chování při 429/5xx bez vystavení klíčů nebo interních chyb.
-4. Při přidání interních nástrojů provést threat model oprávnění, test odmítnutí nepovolených operací mimo LLM a simulaci exfiltrace z každé agentní role.
-
-**Závěr:** Pro veřejnou aplikaci je významná část rizika prompt injection omezena architekturou s jediným read-only nástrojem a nulovým přístupem agentů k tajným klíčům. Ochrana není absolutní; největší otevřené položky jsou anonymní spotřeba API a strojová kontrola faktů, citací a handoffů.
+**Závěr:** Pro současnou veřejnou ukázku jsou pravomoci agentů a práce s klíči omezené. Před širším provozem mají nejvyšší prioritu náklady na veřejné API a automatická kontrola předaných dat a citací.

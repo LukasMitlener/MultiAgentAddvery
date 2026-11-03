@@ -22,6 +22,10 @@ textarea::placeholder,input::placeholder{color:#75677e}
 .examples span{color:#94849e}
 .examples button,.text-button{background:#17101d;border-color:#493258;color:#d9c7e5}
 .examples button:hover,.text-button:hover{border-color:#a945e7;color:#fff}
+.form-actions{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-top:18px}
+.form-actions .examples{flex:1;min-width:0;padding:0}
+.form-actions .submit{flex:none}
+@media(max-width:900px){.form-actions{align-items:stretch;flex-direction:column}.form-actions .submit{align-self:flex-end}}
 .form-bottom,.agent-step,.agent-card details,.detail-title{border-color:#302536}
 .submit{background:linear-gradient(100deg,#6b2eea,#b537ed);color:#fff;box-shadow:0 9px 30px #8d2be243}
 .submit:hover{background:linear-gradient(100deg,#7b39f4,#c044f5)}
