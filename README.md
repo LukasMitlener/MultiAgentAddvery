@@ -51,6 +51,7 @@ scripts/dev.mjs                            místní server
 tests/pipeline.test.mjs                    test handoffů, Skillu a tool callu
 .openai/hosting.json                       konfigurace aktuální ukázky v Sites
 vercel.json                                konfigurace Vercel buildu
+.vercelignore                             vyloučení lokálních klíčů z CLI uploadu
 .env.example                               vzor konfigurace (bez klíčů)
 ```
 
@@ -76,7 +77,7 @@ Referenční dokumentace: [Claude Messages API](https://platform.claude.com/docs
 
 ## Vercel a GitHub
 
-Projekt je připraven pro Vercel Functions (`api/`) a statický build (`public/`). Po přihlášení přes Vercel CLI spusťte v kořeni repozitáře `vercel link` a `vercel git connect`; tím se Vercel projekt napojí na GitHub repozitář a push do větve spustí nové nasazení. Pro produkční běh vložte `ANTHROPIC_API_KEY` a `PERPLEXITY_API_KEY` do **Environment Variables** projektu ve Vercelu, ne do Gitu. `.env.local` zůstává jen na vašem počítači. Tyto kroky jsou připravené, ale dokud není projekt připojen k účtu Vercel a klíče nejsou vloženy, automatický redeploy ani živý AI běh na Vercelu nejsou aktivní.
+Zdrojový kód je v [GitHub repozitáři](https://github.com/LukasMitlener/MultiAgentAddvery). [Produkční aplikace](https://multi-agent-research-assistant-two.vercel.app) běží na Vercelu. Projekt používá Vercel Functions (`api/`) a statický build (`public/`). Propojení GitHub → Vercel je aktivní: push do `main` automaticky vytvořil nový produkční deployment. `ANTHROPIC_API_KEY` a `PERPLEXITY_API_KEY` jsou nastavené jako produkční tajné proměnné Vercelu. `.env.local` zůstává jen na počítači, Git jej ignoruje a `.vercelignore` jej vylučuje i z přímého CLI uploadu. Kontrolu po dalším pushi lze provést pomocí `vercel ls` a `vercel inspect <deployment>`.
 
 ## Známá omezení
 
