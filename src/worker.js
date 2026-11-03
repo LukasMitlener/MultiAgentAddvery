@@ -161,7 +161,7 @@ function streamRun(request, env, fetchImpl, input) {
   };
   const topic = input.topic.trim();
   const models = { fast: env.CLAUDE_FAST_MODEL || DEFAULT_FAST_MODEL, deep: env.CLAUDE_DEEP_MODEL || DEFAULT_DEEP_MODEL };
-  const key = input.apiKey?.trim() || env.ANTHROPIC_API_KEY;
+  const key = env.ANTHROPIC_API_KEY;
   const perplexityKey = env.PERPLEXITY_API_KEY;
   void (async () => {
     try {
@@ -257,9 +257,8 @@ export function createApp(fetchImpl = fetch) {
           const input = await readBody(request);
           if (!input || typeof input !== 'object' || Array.isArray(input)) return json({ error: 'Neplatný požadavek.' }, 400);
           if (typeof input.topic !== 'string' || input.topic.trim().length < 5 || input.topic.length > 500) return json({ error: 'Téma musí mít 5–500 znaků.' }, 400);
-          if (Object.keys(input).some(key => !['topic', 'apiKey'].includes(key))) return json({ error: 'Nepodporované pole požadavku.' }, 400);
-          if (input.apiKey !== undefined && (typeof input.apiKey !== 'string' || input.apiKey.length > 512)) return json({ error: 'Neplatný Claude API klíč.' }, 400);
-          if (!(input.apiKey?.trim() || env.ANTHROPIC_API_KEY)) return json({ error: 'Zadejte Claude API klíč nebo jej nastavte na serveru.' }, 400);
+          if (Object.keys(input).some(key => key !== 'topic')) return json({ error: 'Nepodporované pole požadavku.' }, 400);
+          if (!env.ANTHROPIC_API_KEY) return json({ error: 'Claude API klíč není nastaven na serveru.' }, 503);
           return streamRun(request, env, fetchImpl, input);
         } catch (error) { return json({ error: error.message }, 400); }
       }

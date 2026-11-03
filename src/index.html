@@ -19,20 +19,17 @@
     <main>
       <section class="hero" aria-labelledby="hero-title">
         <div class="eyebrow"><span class="eyebrow-line"></span> ADDVERY · AGENTNÍ VÝZKUM V PŘÍMÉM PŘENOSU</div>
-        <h1 id="hero-title">Od otázky k odpovědi.<br><em>Krok za krokem.</em></h1>
+        <h1 id="hero-title">Multiagentní<br><em>výzkumný asistent.</em></h1>
         <p class="hero-copy">Zadejte téma a sledujte, jak výzkumník hledá zdroje, hodnotitel prověřuje jejich kvalitu, analytik skládá závěry a autor připravuje odpověď.</p>
       </section>
 
       <section class="input-panel" aria-labelledby="ask-title">
-        <div class="section-head"><div><span class="section-index">01 / ZADÁNÍ</span><h2 id="ask-title">Co chcete prozkoumat?</h2></div><span class="panel-hint">Jedna konkrétní otázka funguje nejlépe</span></div>
+        <div class="section-head"><div><span class="section-index">01 / DOTAZ</span><h2 id="ask-title">Co chcete prozkoumat?</h2></div><span class="panel-hint">Jedna konkrétní otázka funguje nejlépe</span></div>
         <form id="research-form">
           <label class="sr-only" for="topic">Výzkumné téma nebo otázka</label>
           <textarea id="topic" name="topic" rows="3" minlength="5" maxlength="500" required placeholder="Například: Jak se změnilo využití obnovitelných zdrojů v Evropě za posledních deset let?"></textarea>
           <div class="examples"><span>Zkuste:</span><button type="button" data-example="Jaké jsou hlavní výhody a limity tepelných čerpadel v domácnostech?">Tepelná čerpadla</button><button type="button" data-example="Jaké jsou současné poznatky o dopadech mikroplastů na lidské zdraví?">Mikroplasty a zdraví</button><button type="button" data-example="Jaké jsou hlavní příčiny úbytku opylovačů v Evropě?">Úbytek opylovačů</button></div>
           <div class="form-bottom">
-            <div class="auth-controls">
-              <label class="key-wrap" id="key-wrap"><span>Claude API klíč</span><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Volitelné, pokud je nastaven na serveru"><small>Vlastní klíč se odešle jen při tomto běhu a neukládá se.</small></label>
-            </div>
             <button class="submit" id="submit" type="submit"><span>Spustit výzkum</span><span aria-hidden="true">↗</span></button>
           </div>
         </form>
@@ -56,7 +53,7 @@
       <section class="report-section" aria-labelledby="report-title"><div class="section-head"><div><span class="section-index">03 / VÝSLEDEK</span><h2 id="report-title">Závěrečná zpráva</h2></div><button id="download" class="text-button" type="button" disabled>Stáhnout .md ↓</button></div><pre id="report" class="report empty-report">Zpráva se objeví po dokončení práce všech čtyř agentů.</pre></section>
     </main>
 
-    <footer><span>Koncept pro Addvery · demonstrace explicitní multi-agentní orchestrace.</span><span>Perplexity Search API · Claude Messages API · projektový Skill</span></footer>
+    <footer><span>Multiagentní výzkumný asistent · transparentní práce se zdroji</span><span>Perplexity Search API · Claude Messages API · projektový Skill</span></footer>
   </div>
 </body>
 </html>

@@ -21,6 +21,7 @@ test('pipeline volá skutečný nástroj, používá Skill a předává artefakt
   const apiBodies = [];
   const mockFetch = async (url, options = {}) => {
     if (String(url).includes('api.anthropic.com')) {
+      assert.equal(options.headers['x-api-key'], 'test-key');
       const body = JSON.parse(options.body); apiBodies.push(body);
       if (apiBodies.length === 1) return response({ content: [{ type: 'tool_use', id: 'toolu_1', name: 'search_sources', input: { query: 'test energie' } }] });
       if (apiBodies.length === 2) return response({ content: [{ type: 'text', text: JSON.stringify({ summary: 'Shrnutí R', findings: [{ claim: 'Tvrzení R', source_ids: ['S1'] }] }) }] });
@@ -35,8 +36,8 @@ test('pipeline volá skutečný nástroj, používá Skill a předává artefakt
   const app = createApp(mockFetch);
   const run = await app.fetch(new Request('http://local/api/run', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ topic: 'Test energie', apiKey: 'test-key' }),
-  }), {});
+    body: JSON.stringify({ topic: 'Test energie' }),
+  }), { ANTHROPIC_API_KEY: 'test-key' });
   assert.equal(run.status, 200);
   const events = eventsFrom(await run.text());
   assert.equal(apiBodies.length, 5);
@@ -90,7 +91,7 @@ test('s Perplexity klíčem používá Search API a předává jeho zdroje Claud
 test('bez klíče vrací srozumitelnou chybu', async () => {
   const app = createApp(async () => { throw new Error('Network must not be called'); });
   const run = await app.fetch(new Request('http://local/api/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ topic: 'Dostatečně dlouhá otázka' }) }), {});
-  assert.equal(run.status, 400);
+  assert.equal(run.status, 503);
   assert.match((await run.json()).error, /Claude API klíč/);
 });
 
@@ -99,7 +100,8 @@ test('rozhraní nabízí pouze skutečný výzkum', async () => {
   const html = await (await app.fetch(new Request('http://local/'))).text();
   const script = await (await app.fetch(new Request('http://local/app.js'))).text();
   assert.doesNotMatch(html, /Ukázkový režim|id="demo"/);
-  assert.doesNotMatch(script, /demoInput|demo:/);
+  assert.doesNotMatch(html, /Claude API klíč|id="api-key"/);
+  assert.doesNotMatch(script, /demoInput|demo:|keyInput|apiKey/);
   assert.match(html, /Spustit výzkum/);
 });
 
@@ -149,6 +151,10 @@ test('odmítá cross-origin, text/plain a příliš velké tělo před voláním
   }), { ANTHROPIC_API_KEY: 'test-key' });
   assert.equal(unsupported.status, 400);
   assert.match((await unsupported.json()).error, /Nepodporované pole/);
+  const userKey = await app.fetch(new Request('https://example.test/api/run', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ topic: 'Test bezpečnostních kontrol', apiKey: 'test-user-key' }),
+  }), { ANTHROPIC_API_KEY: 'test-server-key' });
+  assert.equal(userKey.status, 400);
 });
 
 test('nepropustí nebezpečné odkazy ani odpověď poskytovatele s klíčem', async () => {

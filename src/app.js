@@ -1,6 +1,5 @@
 const form = document.querySelector('#research-form');
 const topicInput = document.querySelector('#topic');
-const keyInput = document.querySelector('#api-key');
 const submit = document.querySelector('#submit');
 const errorBox = document.querySelector('#form-error');
 const status = document.querySelector('#run-status');
@@ -124,7 +123,7 @@ form.addEventListener('submit', async event => {
   try {
     const response = await fetch('/api/run', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ topic: topicInput.value, apiKey: keyInput.value }),
+      body: JSON.stringify({ topic: topicInput.value }),
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
@@ -135,7 +134,6 @@ form.addEventListener('submit', async event => {
     setStatus('Chyba', 'error'); showError(error.message); addEvent('CHYBA', error.message);
   } finally {
     submit.disabled = false; submit.firstElementChild.textContent = 'Spustit výzkum';
-    keyInput.value = '';
   }
 });
 

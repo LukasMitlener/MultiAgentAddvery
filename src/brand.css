@@ -16,14 +16,13 @@ h1 em{font-family:'DM Sans',system-ui,sans-serif;font-style:normal;font-weight:7
 .input-panel{box-shadow:0 25px 70px #0009}
 .section-head h2,.agent-card h3,.detail-title h3{color:#faf8fc}
 .panel-hint,.agent-number,.detail-title span{color:#9b8ca6}
-textarea,.key-wrap input,.report{background:#08070a;border-color:#3b2a46;color:#f9f6fb}
-textarea:focus,.key-wrap input:focus{border-color:#aa47ec;box-shadow:0 0 0 3px #a53bef30}
+textarea,.report{background:#08070a;border-color:#3b2a46;color:#f9f6fb}
+textarea:focus{border-color:#aa47ec;box-shadow:0 0 0 3px #a53bef30}
 textarea::placeholder,input::placeholder{color:#75677e}
-.examples span,.key-wrap small{color:#94849e}
+.examples span{color:#94849e}
 .examples button,.text-button{background:#17101d;border-color:#493258;color:#d9c7e5}
 .examples button:hover,.text-button:hover{border-color:#a945e7;color:#fff}
 .form-bottom,.agent-step,.agent-card details,.detail-title{border-color:#302536}
-.key-wrap{color:#d6c9de}
 .submit{background:linear-gradient(100deg,#6b2eea,#b537ed);color:#fff;box-shadow:0 9px 30px #8d2be243}
 .submit:hover{background:linear-gradient(100deg,#7b39f4,#c044f5)}
 .status-pill{border-color:#4b3657;color:#d4c3de}
