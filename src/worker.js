@@ -160,15 +160,13 @@ function streamRun(request, env, fetchImpl, input) {
     await writer.write(encoder.encode(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`));
   };
   const topic = input.topic.trim();
-  const demo = Boolean(input.demo);
   const models = { fast: env.CLAUDE_FAST_MODEL || DEFAULT_FAST_MODEL, deep: env.CLAUDE_DEEP_MODEL || DEFAULT_DEEP_MODEL };
   const key = input.apiKey?.trim() || env.ANTHROPIC_API_KEY;
   const perplexityKey = env.PERPLEXITY_API_KEY;
   void (async () => {
     try {
-      await emit('run_start', { topic, roles: ROLES, mode: demo ? 'demo' : 'api', models: demo ? null : models });
-      if (demo) await runDemo(fetchImpl, topic, perplexityKey, emit);
-      else await runReal(fetchImpl, key, models, topic, perplexityKey, emit);
+      await emit('run_start', { topic, roles: ROLES, models });
+      await runReal(fetchImpl, key, models, topic, perplexityKey, emit);
       await emit('run_done', { ok: true });
     } catch (error) {
       await emit('run_error', { message: error.message || String(error) }).catch(() => {});
@@ -243,28 +241,6 @@ async function runReal(fetchImpl, apiKey, models, topic, perplexityKey, emit) {
   await emit('agent_output', { agent: 'writer', output: extractText(writerResponse.content) });
 }
 
-async function runDemo(fetchImpl, topic, perplexityKey, emit) {
-  await emit('agent_start', { agent: 'research', step: 'Ukázkový režim: hledám reálné zdroje.' });
-  await emit('tool_call', { agent: 'research', tool: 'search_sources', input: { query: topic } });
-  const search = await searchSources(fetchImpl, topic, perplexityKey);
-  await emit('tool_result', { agent: 'research', tool: 'search_sources', result: search });
-  const research = { summary: `Nalezeno ${search.sources.length} zdrojů k tématu „${topic}“.`, findings: search.sources.slice(0, 3).map(source => ({ claim: source.title, source_ids: [source.id] })), open_questions: ['Ověřit obsah plných textů.'] };
-  await emit('agent_output', { agent: 'research', output: research });
-  await emit('handoff', { from: 'research', to: 'critic', payload: { research, sources: search.sources } });
-  await emit('agent_start', { agent: 'critic', step: 'Ukázkový režim: hodnotím dostupnost důkazů.' });
-  await emit('skill_loaded', { agent: 'critic', skill: 'source-evaluation', path: '.cursor/skills/source-evaluation/SKILL.md' });
-  const evaluation = { sources: search.sources.map(source => ({ id: source.id, snippet_only: true, reason: 'Dostupný je pouze výsledek vyhledávání.' })), claims: [], gaps: ['Otevřít a ověřit plné texty.'], overall_confidence: 'low' };
-  await emit('agent_output', { agent: 'critic', output: evaluation });
-  await emit('handoff', { from: 'critic', to: 'analyst', payload: { research, evaluation, sources: search.sources } });
-  await emit('agent_start', { agent: 'analyst', step: 'Ukázkový režim: skládám orientační přehled.' });
-  const analysis = { key_points: research.findings, limitations: evaluation.gaps, conclusion: 'Dostupné úryvky nestačí k věcnému závěru.' };
-  await emit('agent_output', { agent: 'analyst', output: analysis });
-  await emit('handoff', { from: 'analyst', to: 'writer', payload: { analysis, evaluation, sources: search.sources } });
-  await emit('agent_start', { agent: 'writer', step: 'Ukázkový režim: formátuji přehled.' });
-  const report = `# ${topic}\n\nToto je ukázkový režim bez AI API. Vyhledávání zdrojů je skutečné; závěry jsou pouze demonstrací toku dat.\n\n## Nalezené zdroje\n${search.sources.map(source => `- [${source.id}] ${source.title} — ${source.url}`).join('\n')}\n\n## Další krok\nSpusťte režim s Claude API klíčem pro skutečný výzkum, hodnocení a syntézu.`;
-  await emit('agent_output', { agent: 'writer', output: report });
-}
-
 export function createApp(fetchImpl = fetch) {
   return {
     async fetch(request, env = {}) {
@@ -281,9 +257,9 @@ export function createApp(fetchImpl = fetch) {
           const input = await readBody(request);
           if (!input || typeof input !== 'object' || Array.isArray(input)) return json({ error: 'Neplatný požadavek.' }, 400);
           if (typeof input.topic !== 'string' || input.topic.trim().length < 5 || input.topic.length > 500) return json({ error: 'Téma musí mít 5–500 znaků.' }, 400);
-          if (input.demo !== undefined && typeof input.demo !== 'boolean') return json({ error: 'Neplatný režim.' }, 400);
+          if (Object.keys(input).some(key => !['topic', 'apiKey'].includes(key))) return json({ error: 'Nepodporované pole požadavku.' }, 400);
           if (input.apiKey !== undefined && (typeof input.apiKey !== 'string' || input.apiKey.length > 512)) return json({ error: 'Neplatný Claude API klíč.' }, 400);
-          if (!input.demo && !(input.apiKey?.trim() || env.ANTHROPIC_API_KEY)) return json({ error: 'Zadejte Claude API klíč nebo spusťte ukázkový režim.' }, 400);
+          if (!(input.apiKey?.trim() || env.ANTHROPIC_API_KEY)) return json({ error: 'Zadejte Claude API klíč nebo jej nastavte na serveru.' }, 400);
           return streamRun(request, env, fetchImpl, input);
         } catch (error) { return json({ error: error.message }, 400); }
       }

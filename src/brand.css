@@ -19,14 +19,10 @@ h1 em{font-family:'DM Sans',system-ui,sans-serif;font-style:normal;font-weight:7
 textarea,.key-wrap input,.report{background:#08070a;border-color:#3b2a46;color:#f9f6fb}
 textarea:focus,.key-wrap input:focus{border-color:#aa47ec;box-shadow:0 0 0 3px #a53bef30}
 textarea::placeholder,input::placeholder{color:#75677e}
-.examples span,.key-wrap small,.mode-switch small{color:#94849e}
+.examples span,.key-wrap small{color:#94849e}
 .examples button,.text-button{background:#17101d;border-color:#493258;color:#d9c7e5}
 .examples button:hover,.text-button:hover{border-color:#a945e7;color:#fff}
 .form-bottom,.agent-step,.agent-card details,.detail-title{border-color:#302536}
-.mode-switch{color:#f8f2fa}
-.switch-track{background:#55445e}
-.mode-switch input:checked+.switch-track{background:#9d36ed}
-.mode-switch input:checked+.switch-track:before{background:#fff}
 .key-wrap{color:#d6c9de}
 .submit{background:linear-gradient(100deg,#6b2eea,#b537ed);color:#fff;box-shadow:0 9px 30px #8d2be243}
 .submit:hover{background:linear-gradient(100deg,#7b39f4,#c044f5)}

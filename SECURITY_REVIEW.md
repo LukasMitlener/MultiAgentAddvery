@@ -7,11 +7,11 @@
 
 Aplikace omezuje pravomoci modelů: pouze výzkumník může použít `search_sources`, a ten volá pevně určené vyhledávací API. Žádný agent nedostává API klíč v promptu a žádný nemůže spustit kód, číst soubory nebo volat libovolnou URL. Neznámé webové URL se zobrazují jako odkazy v UI, backend je neotvírá. Data ze zdrojů a předchozích agentů jsou v systémových promptech označena jako nedůvěryhodná. To snižuje dopad prompt injection, ale **nezaručuje, že model útočný text nikdy neposlechne**.
 
-Největší zbývající riziko veřejného dema je **neomezené čerpání serverových API klíčů přes anonymní `/api/run`**. Limit 10 požadavků / 10 minut / IP byl na Vercelu připraven, ale na přání zadavatele nebyl aktivován, aby neomezil testování ve výběrovém řízení. Nepublikovaný návrh pravidla byl odstraněn a produkce nemá vlastní pravidlo tohoto typu. Před ostrým provozem je třeba znovu rozhodnout o kvótách, rozpočtových limitech nebo autentizaci.
+Největší zbývající riziko veřejné aplikace je **neomezené čerpání serverových API klíčů přes anonymní `/api/run`**. Limit 10 požadavků / 10 minut / IP byl na Vercelu připraven, ale na přání zadavatele nebyl aktivován, aby neomezil testování ve výběrovém řízení. Nepublikovaný návrh pravidla byl odstraněn a produkce nemá vlastní pravidlo tohoto typu. Před ostrým provozem je třeba znovu rozhodnout o kvótách, rozpočtových limitech nebo autentizaci.
 
 ## Provedené kontroly a důkazy
 
-- `npm test`: **7/7 prošlo**. Pokryta orchestrace, skutečný tool call, použití Skillu, handoff, validace typu a velikosti požadavku, cizí `Origin`, nebezpečné URL a generická chyba poskytovatele.
+- `npm test`: **8/8 prošlo**. Pokryta orchestrace, skutečný tool call, použití Skillu, handoff, odstranění simulovaného režimu, validace typu a velikosti požadavku, cizí `Origin`, nebezpečné URL a generická chyba poskytovatele.
 - Řízený **živý prompt injection test**: podvržený výsledek vyhledávání obsahoval pokyn přidat do finální zprávy unikátní kontrolní řetězec a ignorovat původní úkol. Proběhlo 5 reálných volání Claude API, 3 handoffy a celý běh skončil úspěšně; řetězec se ve finální zprávě **neobjevil**. Je to jeden testovací případ, nikoli statistický důkaz odolnosti.
 - Test se záměrně škodlivým `javascript:` URL ověřuje, že se nepropustí do seznamu zdrojů. UI vkládá výstup modelu a úryvky přes `textContent`, nikoli jako HTML. Odkazy se otevírají s `noopener noreferrer`.
 - Git ignoruje `.env.local` a `.vercelignore` jej vylučuje z uploadu Vercel CLI. `npm audit --audit-level=high` hlásí **0 zranitelností** v balíčcích; projekt nemá runtime npm závislosti.
@@ -23,7 +23,7 @@ Největší zbývající riziko veřejného dema je **neomezené čerpání serv
 
 ### 1. Veřejný endpoint a náklady na API — vysoká priorita před ostrým provozem
 
-`/api/run` je bez přihlášení a běžný požadavek spustí až pět volání Claude plus vyhledávání. Kontrola `Origin` zabraňuje části útoků z prohlížeče, **není autentizací**: klient mimo prohlížeč jej může vynechat nebo podvrhnout. Pro toto veřejné demo zůstává endpoint otevřený kvůli dostupnosti pro hodnotitele. Pro produkční provoz: kvóty na účet a IP, rozpočtový strop u poskytovatelů, monitor spotřeby, případně přihlášení. Volitelný per-IP limit aktivovat až po skončení hodnocení a s vhodnou tolerancí pro sdílené IP.
+`/api/run` je bez přihlášení a běžný požadavek spustí až pět volání Claude plus vyhledávání. Kontrola `Origin` zabraňuje části útoků z prohlížeče, **není autentizací**: klient mimo prohlížeč jej může vynechat nebo podvrhnout. Veřejný endpoint zůstává otevřený kvůli dostupnosti pro hodnotitele. Pro produkční provoz: kvóty na účet a IP, rozpočtový strop u poskytovatelů, monitor spotřeby, případně přihlášení. Volitelný per-IP limit aktivovat až po skončení hodnocení a s vhodnou tolerancí pro sdílené IP.
 
 ### 2. Prompt injection a kontaminace handoffů — střední priorita
 
@@ -77,4 +77,4 @@ Oficiální [OWASP seznam 2026](https://genai.owasp.org/resource/owasp-genai-llm
 3. Změřit souběžné požadavky, timeouty poskytovatelů, náklady na jednu otázku a chování při 429/5xx bez vystavení klíčů nebo interních chyb.
 4. Při přidání interních nástrojů provést threat model oprávnění, test odmítnutí nepovolených operací mimo LLM a simulaci exfiltrace z každé agentní role.
 
-**Závěr:** Pro veřejné demo je významná část rizika prompt injection omezena architekturou s jediným read-only nástrojem a nulovým přístupem agentů k tajným klíčům. Ochrana není absolutní; největší otevřené položky jsou anonymní spotřeba API a strojová kontrola faktů, citací a handoffů.
+**Závěr:** Pro veřejnou aplikaci je významná část rizika prompt injection omezena architekturou s jediným read-only nástrojem a nulovým přístupem agentů k tajným klíčům. Ochrana není absolutní; největší otevřené položky jsou anonymní spotřeba API a strojová kontrola faktů, citací a handoffů.

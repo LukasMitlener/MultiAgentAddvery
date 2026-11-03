@@ -14,4 +14,4 @@ Pracuj v tomto repozitáři jako senior full-stack vývojář. Cílem je během 
 
 ## Priorita další práce
 
-Nejprve proveď jeden živý běh s Claude API klíčem, je-li k dispozici, a oprav případné chyby ve formátu API. Poté otestuj UI v prohlížeči na desktopu i mobilní šířce. Nakonec připrav repozitář a veřejně přístupnou ukázku, pokud máš oprávnění a potřebné přístupy. Pokud klíč není k dispozici, zachovej jasné rozlišení mezi ukázkovým režimem a skutečným AI během a popiš tuto mezeru při předání.
+Nejprve proveď jeden živý běh s Claude API klíčem, je-li k dispozici, a oprav případné chyby ve formátu API. Poté otestuj UI v prohlížeči na desktopu i mobilní šířce. Nakonec připrav repozitář a veřejně přístupnou aplikaci, pokud máš oprávnění a potřebné přístupy. Pokud klíč není k dispozici, popiš tuto mezeru při předání; nevytvářej simulovaný AI běh.

@@ -1,8 +1,6 @@
 const form = document.querySelector('#research-form');
 const topicInput = document.querySelector('#topic');
 const keyInput = document.querySelector('#api-key');
-const demoInput = document.querySelector('#demo');
-const keyWrap = document.querySelector('#key-wrap');
 const submit = document.querySelector('#submit');
 const errorBox = document.querySelector('#form-error');
 const status = document.querySelector('#run-status');
@@ -17,10 +15,6 @@ document.querySelectorAll('[data-example]').forEach(button => button.addEventLis
   topicInput.value = button.dataset.example;
   topicInput.focus();
 }));
-demoInput.addEventListener('change', () => {
-  keyWrap.classList.toggle('hidden', demoInput.checked);
-});
-
 function agentCard(name) { return document.querySelector(`[data-agent="${name}"]`); }
 function label(name) { return ({ research: 'Výzkumník', critic: 'Hodnotitel', analyst: 'Analytik', writer: 'Autor' })[name] || name; }
 function setStatus(text, kind = '') { status.textContent = text; status.className = `status-pill ${kind}`.trim(); }
@@ -66,7 +60,7 @@ function renderSources(items) {
 }
 function onEvent(type, data) {
   if (type === 'run_start') {
-    setStatus(data.mode === 'demo' ? 'Ukázkový běh' : 'Claude API běží', 'active');
+    setStatus('Claude API běží', 'active');
     addEvent('START', data.topic);
     if (data.models) addEvent('MODELY', `Výzkumník + hodnotitel: ${data.models.fast}; analytik + autor: ${data.models.deep}.`);
   }
@@ -130,7 +124,7 @@ form.addEventListener('submit', async event => {
   try {
     const response = await fetch('/api/run', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ topic: topicInput.value, apiKey: demoInput.checked ? '' : keyInput.value, demo: demoInput.checked }),
+      body: JSON.stringify({ topic: topicInput.value, apiKey: keyInput.value }),
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));

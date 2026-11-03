@@ -9,7 +9,7 @@ Průběh je vidět přímo v aplikaci. U každého agenta se zobrazuje aktuáln�
 ## Jak aplikaci používat
 
 1. Zadejte téma nebo konkrétní otázku, například „Jaké jsou hlavní dopady obnovitelných zdrojů v Evropě?“
-2. Pro skutečnou analýzu ponechte režim Claude API. Pokud je na serveru nastavený klíč, nemusíte nic doplňovat do formuláře. Ukázkový režim předvede tok agentů bez volání Claude; zdroje vyhledá, ale závěry pouze demonstruje.
+2. Pokud je Claude API klíč nastavený na serveru, nemusíte do formuláře doplňovat vlastní klíč. Každý běh používá skutečné AI agenty a vyhledávání zdrojů.
 3. Klikněte na **Spustit výzkum** a sledujte práci agentů, nalezené zdroje a jednotlivá předání.
 4. Přečtěte si závěrečnou zprávu včetně nejistot a citací; případně ji stáhněte jako soubor `.md`.
 
@@ -17,13 +17,13 @@ Vyhledávání používá Perplexity Search API. Není-li jeho klíč dostupný,
 
 ## Rychlé spuštění
 
-Potřebujete Node.js 20+. Pro plný režim je nutný klíč Anthropic; klíč Perplexity je volitelný. Projekt nemá externí npm závislosti. Pokud `.env.local` ještě nemáte, vytvořte jej podle `.env.example` a doplňte klíče.
+Potřebujete Node.js 20+ a klíč Anthropic; klíč Perplexity je volitelný. Projekt nemá externí npm závislosti. Pokud `.env.local` ještě nemáte, vytvořte jej podle `.env.example` a doplňte klíče.
 
 ```powershell
 npm run dev
 ```
 
-Otevřete `http://localhost:8787`. Vývojový server načítá `.env.local` (případně `.env`). Claude klíč lze také zadat přímo do formuláře pro jeden běh; backend jej neukládá. Bez něj lze použít **Ukázkový režim**: ten skutečně hledá externí zdroje, ale výstupy agentů jen demonstruje a jasně je tak označuje. Bez Perplexity klíče slouží jako záložní zdroje Wikipedia a OpenAlex.
+Otevřete `http://localhost:8787`. Vývojový server načítá `.env.local` (případně `.env`). Claude klíč lze také zadat přímo do formuláře pro jeden běh; backend jej neukládá. Bez Perplexity klíče slouží jako záložní zdroje Wikipedia a OpenAlex. Bez klíče Anthropic aplikace výzkum nespustí a zobrazí srozumitelnou chybu.
 
 ### Konfigurace API a modelů
 
@@ -81,7 +81,7 @@ Test používá náhradní odpovědi externích API a kontroluje, že výzkumní
 
 ## API a bezpečnost
 
-- `POST /api/run` přijímá `{ "topic": "…", "apiKey": "…", "demo": false }` a vrací `text/event-stream`.
+- `POST /api/run` přijímá `{ "topic": "…", "apiKey": "…" }` a vrací `text/event-stream`; `apiKey` je volitelný, pokud je klíč nastaven na serveru.
 - `GET /api/health` vrací základní stav aplikace.
 - Claude se volá přes `POST https://api.anthropic.com/v1/messages`, s top-level `system`, `messages`, `tools` a `tool_choice`. Klíč se nikdy neposílá do výstupních událostí.
 - Vyhledávání volá přímo `POST https://api.perplexity.ai/search` s `PERPLEXITY_API_KEY`. Výsledky `results[]` se převádějí na zdroje `S1`, `S2` atd.

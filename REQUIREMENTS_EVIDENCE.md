@@ -20,8 +20,8 @@ Stav k 3. 11. 2026. Důkazy níže odkazují na implementaci a reprodukovatelné
 
 ## Jak důkazy zopakovat
 
-1. `npm test` — sedm testů pipeline, nástroje, Skillu, handoffů a bezpečnostních hranic.
+1. `npm test` — osm testů pipeline, nástroje, Skillu, handoffů, rozhraní a bezpečnostních hranic.
 2. `npm run build` — sestavení UI a serveru včetně aktuálního Skillu.
-3. V aplikaci spusťte krátké téma v režimu Claude; v časové ose sledujte `NÁSTROJ`, `SKILL`, tři `HANDOFF` a výstupy všech čtyř agentů. Ukázkový režim demonstruje tok bez Claude, proto není důkazem skutečného použití LLM.
+3. V aplikaci spusťte krátké téma; v časové ose sledujte `NÁSTROJ`, `SKILL`, tři `HANDOFF` a výstupy všech čtyř agentů. Každý úspěšný běh používá Claude API.
 
 Bezpečnostní nálezy, hranice prompt injection a další testovací plán jsou v [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
