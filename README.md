@@ -1,13 +1,25 @@
 # Multi-agentní výzkumný asistent
 
-Webová ukázka čtyř explicitně orchestrovaných agentů. Uživatel zadá otázku a v UI sleduje stav každého agenta, volání nástroje, jeho výsledky, tři předání mezi agenty a finální zprávu. Aplikace volá Claude Messages API přímo přes `fetch`; nepoužívá LangChain ani agentní framework.
+Webová aplikace pro rešerši témat a otázek. Vyhledá relevantní zdroje, oddělí zjištěné informace od nejistot a připraví přehlednou zprávu s odkazy na použité zdroje. Celý postup zajišťují čtyři agenti s odlišnými rolemi: výzkumník, hodnotitel zdrojů, analytik a autor zprávy.
+
+Průběh je vidět přímo v aplikaci. U každého agenta se zobrazuje aktuální krok a jeho výstup; časová osa ukazuje použití vyhledávacího nástroje, načtení Skillu a předání dat dalšímu agentovi. Po dokončení lze výslednou zprávu stáhnout jako Markdown. Aplikace volá Claude Messages API přímo přes `fetch` a nepoužívá LangChain ani jiný agentní framework.
+
+**Vyzkoušet online:** [multi-agent-research-assistant-two.vercel.app](https://multi-agent-research-assistant-two.vercel.app/)
+
+## Jak aplikaci používat
+
+1. Zadejte téma nebo konkrétní otázku, například „Jaké jsou hlavní dopady obnovitelných zdrojů v Evropě?“
+2. Pro skutečnou analýzu ponechte režim Claude API. Pokud je na serveru nastavený klíč, nemusíte nic doplňovat do formuláře. Ukázkový režim předvede tok agentů bez volání Claude; zdroje vyhledá, ale závěry pouze demonstruje.
+3. Klikněte na **Spustit výzkum** a sledujte práci agentů, nalezené zdroje a jednotlivá předání.
+4. Přečtěte si závěrečnou zprávu včetně nejistot a citací; případně ji stáhněte jako soubor `.md`.
+
+Vyhledávání používá Perplexity Search API. Není-li jeho klíč dostupný, aplikace používá Wikipedii a OpenAlex. Výsledky vyhledávání obsahují titulky, odkazy a úryvky; aplikace nečte celé články. Závěry proto berte jako výzkumný přehled, u důležitých rozhodnutí ověřte primární zdroje.
 
 ## Rychlé spuštění
 
-Potřebujete Node.js 20+ a klíče Anthropic a Perplexity. Projekt nemá externí npm závislosti.
+Potřebujete Node.js 20+. Pro plný režim je nutný klíč Anthropic; klíč Perplexity je volitelný. Projekt nemá externí npm závislosti. Pokud `.env.local` ještě nemáte, vytvořte jej podle `.env.example` a doplňte klíče.
 
 ```powershell
-# Vyplňte ANTHROPIC_API_KEY a PERPLEXITY_API_KEY v existujícím .env.local.
 npm run dev
 ```
 
@@ -21,7 +33,7 @@ Otevřete `http://localhost:8787`. Vývojový server načítá `.env.local` (př
 - `CLAUDE_DEEP_MODEL` — výchozí `claude-sonnet-5-5` pro analytika a autora.
 - `PORT` — výchozí `8787` pro místní server.
 
-Haiku je zde zvolen pro krátké kroky s nástrojem, extrakci a hodnocení podle rubriky; Sonnet pro syntézu a psaní. Podle [aktuálního přehledu Anthropic](https://platform.claude.com/docs/en/models/overview) je Haiku určen pro rychlé úlohy a Sonnet nabízí vyváženou kombinaci rychlosti a schopností. OpenAI ani Gemini nejsou pro toto zadání potřeba: přidání dalšího poskytovatele by zvětšilo počet integrací, ale nepřidalo nový typ kroku orchestrace.
+Haiku je zde zvolen pro krátké kroky s nástrojem, extrakci a hodnocení podle rubriky; Sonnet pro syntézu a psaní. Podle [přehledu modelů Anthropic](https://platform.claude.com/docs/en/models/overview) je Haiku určen pro rychlé úlohy a Sonnet nabízí vyváženou kombinaci rychlosti a schopností.
 
 ## Jak funguje orchestrace
 
@@ -42,14 +54,14 @@ Projektový Skill je v [`.cursor/skills/source-evaluation/SKILL.md`](.cursor/ski
 src/worker.js                              server, nástroj, API, orchestrace, SSE
 src/index.html                             UI
 src/styles.css                             vzhled
-src/brand.css                              barevná vrstva podle Addvery
+src/brand.css                              barevná vrstva rozhraní
 src/app.js                                 zobrazení průběhu
 api/run.mjs, api/health.mjs                Vercel Functions adapter
 .cursor/skills/source-evaluation/SKILL.md  vlastní Skill
 scripts/build.mjs                          sestavení balíčku bez závislostí
 scripts/dev.mjs                            místní server
 tests/pipeline.test.mjs                    test handoffů, Skillu a tool callu
-REQUIREMENTS_EVIDENCE.md                    kontrola zadání bod po bodu s důkazy
+REQUIREMENTS_EVIDENCE.md                    technické důkazy funkcí a orchestrace
 SECURITY_REVIEW.md                          bezpečnostní revize a plán dalších testů
 package-lock.json                           uzamčené závislosti pro audit
 .openai/hosting.json                       konfigurace aktuální ukázky v Sites
@@ -65,7 +77,7 @@ npm test
 npm run build
 ```
 
-Test používá náhradní odpovědi externích API a kontroluje, že výzkumník vyvolá tool, Perplexity Search dodá zdroje s ID, hodnotitel obdrží Skill, správné modely jsou přiřazeny rolím a analytik i autor skutečně dostanou data předchozího kroku. Testuje také nepovolený původ požadavku, typ a velikost těla, nebezpečné odkazy, bezpečný chybový výstup a datovou hranici při podvrženém úryvku vyhledávání. Pro ověření živého AI běhu vložte oba klíče do `.env.local` a spusťte výzkum v UI.
+Test používá náhradní odpovědi externích API a kontroluje, že výzkumník vyvolá tool, Perplexity Search dodá zdroje s ID, hodnotitel obdrží Skill, správné modely jsou přiřazeny rolím a analytik i autor skutečně dostanou data předchozího kroku. Testuje také nepovolený původ požadavku, typ a velikost těla, nebezpečné odkazy, bezpečný chybový výstup a datovou hranici při podvrženém úryvku vyhledávání. Pro ověření živého AI běhu nastavte klíč Anthropic v `.env.local` a spusťte výzkum v UI.
 
 ## API a bezpečnost
 
@@ -75,9 +87,9 @@ Test používá náhradní odpovědi externích API a kontroluje, že výzkumní
 - Vyhledávání volá přímo `POST https://api.perplexity.ai/search` s `PERPLEXITY_API_KEY`. Výsledky `results[]` se převádějí na zdroje `S1`, `S2` atd.
 - Výsledky vyhledávání jsou nedůvěryhodný vstup. UI je vykresluje přes `textContent`, URL zdrojů se omezuje na HTTP(S), systémové prompty upozorňují na prompt injection a Skill ukládá povinnost přiznat nejistotu.
 - Vstup API se kontroluje na typ, délku a původ prohlížeče; bezpečnostní hlavičky nastavuje `vercel.json`.
-- Aplikace nezachovává historii běhů. Veřejné demo používá serverový klíč bez přihlášení a kvóty. Zvážený Vercel limit nebyl na přání zadavatele aktivován, aby neomezil testování; důvody, zbytkové riziko a další návrhy jsou v [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
+- Aplikace nezachovává historii běhů. Veřejná verze používá serverový klíč bez přihlášení a kvóty; zbytkové riziko a návrhy pro další provoz jsou v [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
 
-Kontrola všech bodů zadání s odkazy na důkazy je v [REQUIREMENTS_EVIDENCE.md](REQUIREMENTS_EVIDENCE.md).
+Technické důkazy hlavních funkcí jsou v [REQUIREMENTS_EVIDENCE.md](REQUIREMENTS_EVIDENCE.md).
 
 Referenční dokumentace: [Claude Messages API](https://platform.claude.com/docs/en/api/messages/create), [tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls), [Perplexity Search API](https://docs.perplexity.ai/api-reference/search-post).
 
