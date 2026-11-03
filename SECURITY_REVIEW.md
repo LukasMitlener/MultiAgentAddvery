@@ -1,7 +1,7 @@
 # Bezpečnostní revize multiagentního výzkumného asistenta
 
 **Datum:** 3. 11. 2026
-**Rozsah:** aplikační kód, tok dat mezi čtyřmi agenty, práce s klíči, HTTP vstup/výstup, Git a Vercel. Jde o technickou revizi konkrétní verze, nikoli certifikaci ani penetrační test celého poskytovatele.
+**Rozsah:** aplikační kód, tok dat mezi čtyřmi agenty, práce s klíči, HTTP vstup/výstup, Git a Vercel. Při revizi byly použity i kontrolní seznamy z dodaných `security-reviewer.md` a `code-reviewer.md`. Jde o technickou revizi konkrétní verze, nikoli certifikaci ani penetrační test celého poskytovatele.
 
 ## Shrnutí pro hodnotitele
 
@@ -16,7 +16,8 @@ Největší zbývající riziko veřejného dema je **neomezené čerpání serv
 - Test se záměrně škodlivým `javascript:` URL ověřuje, že se nepropustí do seznamu zdrojů. UI vkládá výstup modelu a úryvky přes `textContent`, nikoli jako HTML. Odkazy se otevírají s `noopener noreferrer`.
 - Git ignoruje `.env.local` a `.vercelignore` jej vylučuje z uploadu Vercel CLI. `npm audit --audit-level=high` hlásí **0 zranitelností** v balíčcích; projekt nemá runtime npm závislosti.
 - Autor projektu uvedl, že nastavil **expiraci Anthropic API klíče na 7 dní**. Nastavení účtu Anthropic zde nebylo nezávisle ověřeno. Při pozdějším hodnocení je třeba ověřit platnost klíče; po expiraci jej obnovit v proměnných Vercelu a znovu zkontrolovat funkční běh.
-- HTTP vrstva omezuje JSON tělo na 12 kB při čtení streamu, téma na 500 znaků, přijímá `application/json` a odmítá cizí browser `Origin`. Odpověď Claude při chybě nevrací text poskytovatele, který by mohl obsahovat citlivé údaje. `vercel.json` nastavuje CSP, `nosniff`, zákaz vložení do iframe a další hlavičky. Kontrola v nasazené produkci je součástí závěrečného ověření po deployi.
+- HTTP vrstva omezuje JSON tělo na 12 kB při čtení streamu, téma na 500 znaků, přijímá `application/json` a odmítá cizí browser `Origin`. Odpověď Claude při chybě nevrací text poskytovatele, který by mohl obsahovat citlivé údaje. `vercel.json` nastavuje CSP, `nosniff`, zákaz vložení do iframe a další hlavičky.
+- **Produkční ověření po automatickém deployi:** `GET /` a `/api/health` vrací 200; CSP a `nosniff` jsou přítomné; cizí `Origin` vrací 403, `text/plain` 415, nadměrné tělo 400. Jeden živý běh přes veřejné Vercel URL vrátil 8 zdrojů, 4 výstupy agentů, 3 handoffy a `run_done` bez chyby.
 
 ## Zjištění a doporučené pořadí
 
