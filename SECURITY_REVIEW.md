@@ -1,25 +1,25 @@
 # Bezpečnostní revize výzkumného asistenta
 
-**Stav k 3. 11. 2026.** Revize se týká kódu aplikace, předávání dat mezi čtyřmi agenty, API klíčů a veřejného nasazení. Použil jsem také kontrolní seznamy `security-reviewer.md` a `code-reviewer.md`. Neprováděl jsem úplný penetrační test ani kontrolu nastavení účtů u poskytovatelů API.
+**Stav k 12. 11. 2026.** Revize se týká kódu aplikace, předávání dat mezi čtyřmi agenty, API klíčů a veřejného nasazení. Použil jsem také kontrolní seznamy `security-reviewer.md` a `code-reviewer.md`. Neprováděl jsem úplný penetrační test ani kontrolu nastavení účtů u poskytovatelů API.
 
 ## Co aplikace agentům dovoluje
 
 Vyhledávat smí pouze výzkumník, a to přes nástroj `search_sources` s pevně určeným API. Hodnotitel, analytik a autor dostávají data od předchozího agenta, ale další nástroj nemají. Žádný z nich nemůže spouštět kód nebo číst soubory serveru. API klíče nejsou součástí zpráv pro model; server je načítá z proměnných prostředí.
 
-Tato omezení zmenšují dopad podvrženého pokynu v nalezeném textu. Nezaručují správnost odpovědi: model může převzít nepodložené tvrzení nebo vytvořit chybnou citaci.
+Tato omezení zmenšují dopad podvrženého pokynu v nalezeném textu. Server navíc kontroluje strukturu výstupů a ID zdrojů před jejich předáním. Ani to nezaručuje správnost odpovědi: model může převzít nepodložené tvrzení.
 
 ## Provedené kontroly
 
-- `npm test` prošel ve všech **8 testech**. Testy kontrolují tok mezi agenty, volání nástroje, zapojení Skillu a vstupní validaci.
+- `npm test` prošel ve všech **13 testech**. Testy zahrnují více vyhledání, skript Skillu, odmítnutí prázdného hodnocení, useknuté odpovědi a neplatné citace. Externí API jsou v těchto testech nahrazena simulovanými odpověďmi.
 - Klíč Anthropic zůstává na serveru; web nemá pole pro jeho zadání. `.env.local` je vyloučen z Gitu i z nahrávání přes Vercel CLI. Autor projektu nastavil expiraci klíče na **7 dní**. Toto nastavení účtu jsem nemohl nezávisle zkontrolovat.
 
 ## Co zůstává otevřené
 
-**Veřejné API může spotřebovat placené kredity.** Endpoint `/api/run` nevyžaduje přihlášení ani neomezuje počet běhů. Kontrola `Origin` chrání před částí požadavků z prohlížeče; klient mimo prohlížeč ji může obejít. Pro běžný provoz doporučuji kvóty, rozpočtový strop a upozornění při neobvyklé spotřebě. Limit **10 běhů za 10 minut z jedné IP** byl připraven, ale na přání autora nebyl zapnut, aby neomezil testování hodnotiteli. Návrh pravidla byl odstraněn.
+**Veřejné API může spotřebovat placené kredity.** Endpoint `/api/run` nevyžaduje přihlášení ani neomezuje počet běhů. Výzkum nyní provádí nejméně dvě hledání a více volání modelu, takže cena jednoho běhu může vzrůst. Kontrola `Origin` chrání před částí požadavků z prohlížeče; klient mimo prohlížeč ji může obejít. Pro běžný provoz doporučuji kvóty, rozpočtový strop a upozornění při neobvyklé spotřebě. Limit **10 běhů za 10 minut z jedné IP** byl připraven, ale na přání autora nebyl zapnut, aby neomezil testování hodnotiteli. Návrh pravidla byl odstraněn.
 
-**Předané výsledky a citace potřebují kontrolu serverem.** Výstup jednoho agenta se stává vstupem dalšího. Server dnes neověřuje každý JSON výstup podle pevného schématu ani každé citované ID proti skutečně nalezeným zdrojům. Model tak může předat chybný údaj dál, i když jeho prompt žádá opak. Před širším použitím bych přidal obě kontroly a u důležitých témat porovnal tvrzení s původními články, které současná aplikace neotevírá.
+**Správnost tvrzení zůstává k ověření.** Server nyní odmítá neúplný JSON mezi agenty a finální citace na neznámá ID zdrojů. Kontrola ID ale nepotvrzuje, že citovaný zdroj tvrzení skutečně podporuje. Aplikace navíc neotevírá celé články. U důležitých témat je proto potřeba ručně porovnat tvrzení s původními texty a měřit chybné citace na sadě otázek.
 
-**Podvržené pokyny vyžadují více testů.** „Prompt injection“ je pokyn útočníka schovaný třeba v titulku výsledku hledání. Agenti mají v systémových promptech pravidlo, že nalezený obsah je jen zdroj dat, a pouze výzkumník má nástroj. Otestoval bych různé jazyky, skryté znaky a situaci, kdy se útočný text dostane přes několik předání až k autorovi.
+**Podvržené pokyny vyžadují více testů.** „Prompt injection“ je pokyn útočníka schovaný třeba v titulku výsledku hledání. Agenti mají v systémových promptech pravidlo, že nalezený obsah je jen zdroj dat, a pouze výzkumník má nástroj. Vyhledávací loop má limit tří volání. Otestoval bych různé jazyky, skryté znaky a situaci, kdy se útočný text dostane přes několik předání až k autorovi.
 
 **Interní nástroje by vyžadovaly nové hranice přístupu.** Pokud aplikace někdy získá CRM, firemní dokumenty nebo e-mail, každý agent by měl mít jen oprávnění nutné pro svou roli. Výzkumník by například mohl číst schválené zdroje; autor odpovědi nepotřebuje přímý přístup k CRM. Pravidla musí vynucovat server. Odeslání zprávy, změna záznamu nebo export interních dat by měly vyžadovat schválení člověkem a záznam akce.
 

@@ -1,4 +1,5 @@
 // Build script vloží UI a projektový Skill přímo do Worker balíčku.
+import { evaluateSources } from './source-evaluation.mjs';
 const HTML = __UI_HTML__;
 const CSS = __UI_CSS__;
 const JS = __UI_JS__;
@@ -40,23 +41,71 @@ function shortSearchQuery(query) {
   return words.filter(word => !stopwords.has(word)).sort((a, b) => b.length - a.length)[0] || words[0] || query;
 }
 
-function parseObject(content) {
-  const raw = content.filter(block => block.type === 'text').map(block => block.text).join('\n').trim();
-  try { return JSON.parse(raw); } catch { /* model may add a code fence */ }
-  const first = raw.indexOf('{');
-  const last = raw.lastIndexOf('}');
-  if (first >= 0 && last > first) {
-    try { return JSON.parse(raw.slice(first, last + 1)); } catch { /* keep raw */ }
-  }
-  return { raw };
-}
-
 function extractText(content) {
   return content.filter(block => block.type === 'text').map(block => block.text).join('\n').trim();
 }
 
-function trimForModel(value, max = 19000) {
-  return JSON.stringify(value).slice(0, max);
+function parseObject(content) {
+  const raw = extractText(content);
+  const jsonText = raw.startsWith('```') ? raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/, '') : raw;
+  let value;
+  try { value = JSON.parse(jsonText); } catch { throw new Error('Odpověď není platný JSON objekt.'); }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Odpověď musí být JSON objekt.');
+  return value;
+}
+
+const isText = value => typeof value === 'string' && Boolean(value.trim());
+const isTextArray = value => Array.isArray(value) && value.every(isText);
+function knownIds(ids, sources, required = false) {
+  const allowed = new Set(sources.map(source => source.id));
+  return Array.isArray(ids) && (!required || ids.length > 0) && ids.every(id => typeof id === 'string' && allowed.has(id));
+}
+function requireValid(valid, message) { if (!valid) throw new Error(message); }
+
+function validateResearch(value, sources) {
+  requireValid(isText(value.summary), 'Výzkumník nevrátil shrnutí.');
+  requireValid(Array.isArray(value.findings) && value.findings.length > 0, 'Výzkumník nevrátil žádná tvrzení.');
+  requireValid(value.findings.every(item => isText(item?.claim) && knownIds(item.source_ids, sources, true)), 'Výzkumník vrátil tvrzení bez platných ID zdrojů.');
+  requireValid(isTextArray(value.open_questions), 'Výzkumník nevrátil pole otevřených otázek.');
+  return value;
+}
+
+function validateEvaluation(value, sources, findings) {
+  requireValid(Array.isArray(value.sources) && value.sources.length === sources.length, 'Hodnotitel neohodnotil všechny zdroje.');
+  requireValid(new Set(value.sources.map(item => item?.id)).size === sources.length, 'Hodnotitel zopakoval ID zdroje.');
+  requireValid(value.sources.every(item => knownIds([item?.id], sources, true)
+    && item.snippet_only === true && isText(item.reason)
+    && ['primary', 'secondary', 'aggregator', 'unknown'].includes(item.type)
+    && ['relevance', 'authority', 'recency', 'independence'].every(key => Number.isInteger(item.scores?.[key]) && item.scores[key] >= 0 && item.scores[key] <= 3)), 'Hodnotitel vrátil neplatné hodnocení zdrojů.');
+  requireValid(Array.isArray(value.claims) && value.claims.length === findings.length, 'Hodnotitel nevyhodnotil všechna tvrzení.');
+  requireValid(new Set(value.claims.map(item => item?.claim)).size === findings.length, 'Hodnotitel zopakoval tvrzení.');
+  requireValid(value.claims.every(item => findings.some(finding => finding.claim === item?.claim)
+    && ['supported', 'unsupported', 'conflicted'].includes(item.status)
+    && knownIds(item.source_ids, sources) && typeof item.note === 'string'), 'Hodnotitel vrátil neplatné posouzení tvrzení.');
+  requireValid(isTextArray(value.gaps) && ['low', 'medium', 'high'].includes(value.overall_confidence), 'Hodnotitel nevrátil úplné shrnutí hodnocení.');
+  return value;
+}
+
+function validateAnalysis(value, sources) {
+  requireValid(Array.isArray(value.key_points) && value.key_points.length > 0, 'Analytik nevrátil žádné hlavní body.');
+  requireValid(value.key_points.every(item => isText(item?.text) && knownIds(item.source_ids, sources, true)), 'Analytik vrátil bod bez platných ID zdrojů.');
+  requireValid(isTextArray(value.tensions) && isTextArray(value.limitations) && isText(value.conclusion), 'Analytik nevrátil úplnou analýzu.');
+  return value;
+}
+
+function validateReport(value, sources) {
+  requireValid(value.length >= 100 && value.includes('#'), 'Autor nevrátil úplnou strukturovanou zprávu.');
+  const citations = [...value.matchAll(/\[S\d+\]/g)].map(match => match[0].slice(1, -1));
+  requireValid(knownIds(citations, sources, true), 'Zpráva nemá platné citace k nalezeným zdrojům.');
+  return value;
+}
+
+function trimForModel(value, max = 28000) {
+  const compact = { ...value };
+  if (Array.isArray(compact.sources)) compact.sources = compact.sources.map(source => ({ ...source, snippet: source.snippet?.slice(0, 450) }));
+  const serialized = JSON.stringify(compact);
+  if (serialized.length > max) throw new Error('Předávaná data jsou příliš dlouhá.');
+  return serialized;
 }
 
 async function readBody(request) {
@@ -82,7 +131,9 @@ async function readBody(request) {
   try { return JSON.parse(body); } catch { throw new Error('Neplatný JSON požadavek.'); }
 }
 
-async function callClaude(fetchImpl, apiKey, model, system, messages, extra = {}) {
+async function callClaude(fetchImpl, apiKey, model, system, messages, extra = {}, trace = null) {
+  const requestBody = { model, max_tokens: 1200, system, messages, ...extra };
+  if (trace) await trace.emit('llm_request', { agent: trace.agent, phase: trace.phase, request: requestBody });
   const response = await fetchImpl(API_URL, {
     method: 'POST',
     headers: {
@@ -90,14 +141,63 @@ async function callClaude(fetchImpl, apiKey, model, system, messages, extra = {}
       'anthropic-version': '2026-10-21',
       'x-api-key': apiKey,
     },
-    body: JSON.stringify({ model, max_tokens: 1200, system, messages, ...extra }),
+    body: JSON.stringify(requestBody),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(`Claude API: HTTP ${response.status}. Zkontrolujte nastavení klíče a limity účtu.`);
   }
-  if (!Array.isArray(body.content)) throw new Error('Claude API vrátilo nečekaný formát.');
+  if (!Array.isArray(body.content) || typeof body.stop_reason !== 'string') throw new Error('Claude API vrátilo nečekaný formát.');
+  if (trace) await trace.emit('llm_response', { agent: trace.agent, phase: trace.phase, stop_reason: body.stop_reason, content: body.content, usage: body.usage || null });
   return body;
+}
+
+async function completeJson(fetchImpl, apiKey, model, system, messages, role, phase, sources, validator, emit, tokenLimits) {
+  let retryMessages = messages;
+  for (let attempt = 0; attempt < tokenLimits.length; attempt += 1) {
+    const response = await callClaude(fetchImpl, apiKey, model, system, retryMessages,
+      { max_tokens: tokenLimits[attempt] }, { emit, agent: role, phase: `${phase} · pokus ${attempt + 1}` });
+    if (response.stop_reason === 'max_tokens') {
+      await emit('validation_error', { agent: role, message: 'Model dosáhl limitu délky odpovědi; opakuji s vyšším limitem.' });
+      continue;
+    }
+    if (response.stop_reason !== 'end_turn') throw new Error(`${role}: nedokončená odpověď (${response.stop_reason}).`);
+    try {
+      const value = validator(parseObject(response.content), sources);
+      await emit('validation_ok', { agent: role, phase });
+      return value;
+    } catch (error) {
+      await emit('validation_error', { agent: role, message: error.message });
+      retryMessages = [...messages,
+        { role: 'assistant', content: response.content },
+        { role: 'user', content: `Předchozí odpověď nebyla předána dalšímu agentovi: ${error.message} Vrať znovu úplný JSON podle systémového zadání. Nepřidávej komentář ani Markdown.` }];
+    }
+  }
+  throw new Error(`${role}: odpověď neprošla kontrolou ani po opravě.`);
+}
+
+async function completeReport(fetchImpl, apiKey, model, system, messages, sources, emit) {
+  let retryMessages = messages;
+  for (const maxTokens of [3500, 6500]) {
+    const response = await callClaude(fetchImpl, apiKey, model, system, retryMessages,
+      { max_tokens: maxTokens }, { emit, agent: 'writer', phase: `zpráva · limit ${maxTokens}` });
+    if (response.stop_reason === 'max_tokens') {
+      await emit('validation_error', { agent: 'writer', message: 'Zpráva byla useknutá; opakuji s vyšším limitem.' });
+      continue;
+    }
+    if (response.stop_reason !== 'end_turn') throw new Error(`Autor: nedokončená odpověď (${response.stop_reason}).`);
+    try {
+      const report = validateReport(extractText(response.content), sources);
+      await emit('validation_ok', { agent: 'writer', phase: 'zpráva' });
+      return report;
+    } catch (error) {
+      await emit('validation_error', { agent: 'writer', message: error.message });
+      retryMessages = [...messages,
+        { role: 'assistant', content: response.content },
+        { role: 'user', content: `Zpráva nebyla zveřejněna: ${error.message} Napiš ji znovu celou a použij pouze předaná ID zdrojů.` }];
+    }
+  }
+  throw new Error('Autor: nepodařilo se vytvořit úplnou zprávu s platnými citacemi.');
 }
 
 async function searchSources(fetchImpl, query, perplexityKey) {
@@ -184,61 +284,109 @@ function streamRun(request, env, fetchImpl, input) {
 }
 
 async function runReal(fetchImpl, apiKey, models, topic, perplexityKey, emit) {
-  // 1. Research: Claude musí vyvolat klientský nástroj search_sources.
-  await emit('agent_start', { agent: 'research', step: 'Volím dotaz a spouštím vyhledávací nástroj.' });
+  await emit('agent_start', { agent: 'research', step: 'Hledám zdroje z více úhlů otázky.' });
   const searchTool = {
     name: 'search_sources',
-    description: 'Vyhledá externí zdroje přes Perplexity Search API; bez jeho klíče použije Wikipedii a OpenAlex. Vrať krátký konkrétní dotaz.',
+    description: 'Vyhledá externí zdroje přes Perplexity Search API; bez jeho klíče použije Wikipedii a OpenAlex. Vrať jeden krátký konkrétní dotaz.',
     input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
   };
-  const researchSystem = `Jsi výzkumný agent. Nejprve POVINNĚ použij search_sources. Pak vytvoř stručný JSON objekt s poli summary, findings (pole tvrzení se source_ids) a open_questions. Nezaměňuj úryvek vyhledávání za přečtený článek. Odpovídej česky. ${UNTRUSTED_DATA_RULE}`;
+  const researchSystem = `Jsi výzkumný agent. Použij search_sources nejméně dvakrát s různými dotazy, pokud je potřeba i potřetí. Po vyhledávání vytvoř jediný JSON objekt: summary (text), findings (neprázdné pole objektů claim a source_ids), open_questions (pole textů). Každé source_ids musí obsahovat ID skutečně nalezeného zdroje. Nezaměňuj úryvek vyhledávání za přečtený článek. Odpovídej česky. ${UNTRUSTED_DATA_RULE}`;
   const researchMessages = [{ role: 'user', content: `Téma/otázka: ${topic}` }];
-  const toolResponse = await callClaude(fetchImpl, apiKey, models.fast, researchSystem, researchMessages, {
-    tools: [searchTool], tool_choice: { type: 'tool', name: 'search_sources', disable_parallel_tool_use: true }, max_tokens: 500,
-  });
-  const toolUse = toolResponse.content.find(block => block.type === 'tool_use' && block.name === 'search_sources');
-  if (!toolUse) throw new Error('Výzkumný agent nevyvolal povinný nástroj search_sources.');
-  const query = cleanText(toolUse.input?.query || topic);
-  await emit('tool_call', { agent: 'research', tool: 'search_sources', input: { query } });
-  const search = await searchSources(fetchImpl, query, perplexityKey);
-  await emit('tool_result', { agent: 'research', tool: 'search_sources', result: search });
-  researchMessages.push({ role: 'assistant', content: toolResponse.content });
-  researchMessages.push({ role: 'user', content: toolResponse.content.filter(block => block.type === 'tool_use').map(block => ({
-    type: 'tool_result', tool_use_id: block.id, content: trimForModel(search),
-  })) });
-  const researchResponse = await callClaude(fetchImpl, apiKey, models.fast, researchSystem, researchMessages, { max_tokens: 1100 });
-  const research = parseObject(researchResponse.content);
+  const allSources = [];
+  const seenUrls = new Set();
+  const searchedQueries = new Set();
+  let searches = 0;
+  let modelTurns = 0;
+  let tokenLimit = 1200;
+  let research;
+  while (modelTurns < 8) {
+    modelTurns += 1;
+    const canSearch = searches < 3;
+    const options = canSearch ? {
+      tools: [searchTool],
+      tool_choice: searches < 2 ? { type: 'tool', name: 'search_sources', disable_parallel_tool_use: true } : { type: 'auto', disable_parallel_tool_use: true },
+      max_tokens: tokenLimit,
+    } : { max_tokens: Math.max(tokenLimit, 2500) };
+    const response = await callClaude(fetchImpl, apiKey, models.fast, researchSystem, researchMessages, options,
+      { emit, agent: 'research', phase: `vyhledávání · krok ${modelTurns}` });
+    if (response.stop_reason === 'max_tokens') {
+      await emit('validation_error', { agent: 'research', message: 'Odpověď výzkumníka byla useknutá; opakuji s vyšším limitem.' });
+      if (tokenLimit >= 4000) throw new Error('Výzkumník opakovaně dosáhl limitu délky odpovědi.');
+      tokenLimit = Math.min(4000, tokenLimit * 2);
+      continue;
+    }
+    if (response.stop_reason === 'tool_use') {
+      const calls = response.content.filter(block => block.type === 'tool_use');
+      if (!canSearch || calls.length !== 1 || calls[0].name !== 'search_sources' || !isText(calls[0].id)) throw new Error('Výzkumník vyvolal nepovolený nástroj nebo překročil limit hledání.');
+      const call = calls[0];
+      const query = cleanText(call.input?.query).slice(0, 180);
+      if (!query) throw new Error('Výzkumník zadal prázdný vyhledávací dotaz.');
+      researchMessages.push({ role: 'assistant', content: response.content });
+      let result;
+      if (searchedQueries.has(query.toLocaleLowerCase('cs-CZ'))) {
+        result = { type: 'tool_result', tool_use_id: call.id, is_error: true, content: 'Stejný dotaz už byl použit. Zvol jiný úhel otázky.' };
+      } else {
+        searchedQueries.add(query.toLocaleLowerCase('cs-CZ'));
+        await emit('tool_call', { agent: 'research', tool: 'search_sources', input: { query } });
+        const search = await searchSources(fetchImpl, query, perplexityKey);
+        const newSources = [];
+        for (const source of search.sources) {
+          if (seenUrls.has(source.url)) continue;
+          seenUrls.add(source.url);
+          const numbered = { ...source, id: `S${allSources.length + 1}` };
+          allSources.push(numbered);
+          newSources.push(numbered);
+        }
+        searches += 1;
+        await emit('tool_result', { agent: 'research', tool: 'search_sources', result: { query, sources: allSources, new_sources: newSources, provider_errors: search.provider_errors } });
+        result = { type: 'tool_result', tool_use_id: call.id, content: trimForModel({ query, sources: newSources, total_sources: allSources.length }) };
+      }
+      researchMessages.push({ role: 'user', content: [result] });
+      tokenLimit = 1200;
+      continue;
+    }
+    if (response.stop_reason !== 'end_turn') throw new Error(`Výzkumník: nedokončená odpověď (${response.stop_reason}).`);
+    if (searches < 2) throw new Error('Výzkumník neprovedl dvě povinná vyhledání.');
+    try {
+      research = validateResearch(parseObject(response.content), allSources);
+      await emit('validation_ok', { agent: 'research', phase: 'výzkum' });
+    } catch (error) {
+      await emit('validation_error', { agent: 'research', message: error.message });
+      const correction = [...researchMessages, { role: 'assistant', content: response.content },
+        { role: 'user', content: `Oprav výstup: ${error.message} Vrať úplný JSON s platnými ID zdrojů, bez dalšího volání nástroje.` }];
+      research = await completeJson(fetchImpl, apiKey, models.fast, researchSystem, correction, 'research', 'oprava výzkumu', allSources,
+        validateResearch, emit, [2500, 4000]);
+    }
+    break;
+  }
+  if (!research) throw new Error('Výzkumník nedokončil práci v povoleném počtu kroků.');
   await emit('agent_output', { agent: 'research', output: research });
-  await emit('handoff', { from: 'research', to: 'critic', payload: { research, sources: search.sources } });
+  await emit('handoff', { from: 'research', to: 'critic', payload: { research, sources: allSources } });
 
-  // 2. Critic: projektový Skill je vložen do system promptu tohoto agenta.
   await emit('agent_start', { agent: 'critic', step: 'Používám Skill source-evaluation na zdroje a tvrzení.' });
+  const skillChecks = evaluateSources(topic, allSources, research.findings);
+  await emit('skill_check', { agent: 'critic', result: skillChecks });
   await emit('skill_loaded', { agent: 'critic', skill: 'source-evaluation', path: '.cursor/skills/source-evaluation/SKILL.md' });
-  const criticResponse = await callClaude(fetchImpl, apiKey, models.fast,
-    `Jsi nezávislý hodnotitel zdrojů. Dodrž následující projektový Skill. Vrať výhradně JSON. ${UNTRUSTED_DATA_RULE}\n\n${SOURCE_SKILL}`,
-    [{ role: 'user', content: `Otázka: ${topic}\nPředané zdroje a výzkumný výstup: ${trimForModel({ sources: search.sources, research })}` }],
-    { max_tokens: 1300 });
-  const evaluation = parseObject(criticResponse.content);
+  const evaluation = await completeJson(fetchImpl, apiKey, models.fast,
+    `Jsi nezávislý hodnotitel zdrojů. Dodrž projektový Skill a vrať jediný úplný JSON objekt podle jeho schématu. Vrať každé ID zdroje a každé tvrzení přesně jednou. ${UNTRUSTED_DATA_RULE}\n\n${SOURCE_SKILL}`,
+    [{ role: 'user', content: `Otázka: ${topic}\nPředaný výzkum a zdroje: ${trimForModel({ sources: allSources, research, skill_checks: skillChecks })}` }],
+    'critic', 'hodnocení', allSources, value => validateEvaluation(value, allSources, research.findings), emit, [4500, 6500, 7500]);
   await emit('agent_output', { agent: 'critic', output: evaluation });
-  await emit('handoff', { from: 'critic', to: 'analyst', payload: { research, evaluation, sources: search.sources } });
+  await emit('handoff', { from: 'critic', to: 'analyst', payload: { research, evaluation, sources: allSources } });
 
-  // 3. Analyst: dostane explicitně oba předchozí artefakty.
   await emit('agent_start', { agent: 'analyst', step: 'Syntetizuji pouze podložená tvrzení a mezery.' });
-  const analystResponse = await callClaude(fetchImpl, apiKey, models.deep,
-    `Jsi analytik. Použij předaný výzkum a hodnocení zdrojů. Vrať pouze JSON s poli key_points (text, source_ids), tensions, limitations, conclusion. Nepřidávej nepodložené fakty. Odpovídej česky. ${UNTRUSTED_DATA_RULE}`,
-    [{ role: 'user', content: `Otázka: ${topic}\nHandoff: ${trimForModel({ research, evaluation, sources: search.sources })}` }],
-    { max_tokens: 1300 });
-  const analysis = parseObject(analystResponse.content);
+  const analysis = await completeJson(fetchImpl, apiKey, models.deep,
+    `Jsi analytik. Použij předaný výzkum a hodnocení zdrojů. Vrať jediný JSON objekt s neprázdným key_points (pole objektů text, source_ids), tensions (pole textů), limitations (pole textů), conclusion (text). Nepřidávej nepodložené fakty. Odpovídej česky. ${UNTRUSTED_DATA_RULE}`,
+    [{ role: 'user', content: `Otázka: ${topic}\nHandoff: ${trimForModel({ research, evaluation, sources: allSources })}` }],
+    'analyst', 'analýza', allSources, validateAnalysis, emit, [3000, 5000, 6500]);
   await emit('agent_output', { agent: 'analyst', output: analysis });
-  await emit('handoff', { from: 'analyst', to: 'writer', payload: { analysis, evaluation, sources: search.sources } });
+  await emit('handoff', { from: 'analyst', to: 'writer', payload: { analysis, evaluation, sources: allSources } });
 
-  // 4. Writer: strukturovaný report s odkazy na existující ID zdrojů.
   await emit('agent_start', { agent: 'writer', step: 'Píšu závěrečnou odpověď s citacemi a limity.' });
-  const writerResponse = await callClaude(fetchImpl, apiKey, models.deep,
+  const report = await completeReport(fetchImpl, apiKey, models.deep,
     `Jsi autor závěrečné zprávy. Napiš česky přehledný Markdown: krátká odpověď, hlavní zjištění, nejistoty/omezení, zdroje. Každé faktické tvrzení opatři ID zdroje ve tvaru [S1]. Použij jen předaná ID a URL. Nezakrývej chybějící důkazy. ${UNTRUSTED_DATA_RULE}`,
-    [{ role: 'user', content: `Otázka: ${topic}\nHandoff: ${trimForModel({ analysis, evaluation, sources: search.sources })}` }],
-    { max_tokens: 1700 });
-  await emit('agent_output', { agent: 'writer', output: extractText(writerResponse.content) });
+    [{ role: 'user', content: `Otázka: ${topic}\nHandoff: ${trimForModel({ analysis, evaluation, sources: allSources })}` }], allSources, emit);
+  await emit('agent_output', { agent: 'writer', output: report });
 }
 
 export function createApp(fetchImpl = fetch) {

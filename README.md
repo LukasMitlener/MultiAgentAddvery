@@ -2,7 +2,7 @@
 
 Webová aplikace pro rešerši témat a otázek. Vyhledá relevantní zdroje, oddělí zjištěné informace od nejistot a připraví přehlednou zprávu s odkazy na použité zdroje. Celý postup zajišťují čtyři agenti s odlišnými rolemi: výzkumník, hodnotitel zdrojů, analytik a autor zprávy.
 
-Průběh je vidět přímo v aplikaci. U každého agenta se zobrazuje aktuální krok a jeho výstup; časová osa ukazuje použití vyhledávacího nástroje, načtení Skillu a předání dat dalšímu agentovi. Po dokončení lze výslednou zprávu stáhnout jako Markdown. Aplikace volá Claude Messages API přímo přes `fetch` a nepoužívá LangChain ani jiný agentní framework.
+Průběh je vidět přímo v aplikaci. U každého agenta se zobrazuje aktuální krok, výstup a rozbalitelný záznam jednotlivých volání Claude (`system`, `messages`, `tools`, odpověď a `stop_reason`). Časová osa ukazuje hledání, kontrolu Skillu a předání dat. Po dokončení lze výslednou zprávu stáhnout jako Markdown. Aplikace volá Claude Messages API přímo přes `fetch` a nepoužívá LangChain ani jiný agentní framework.
 
 **Vyzkoušet online:** [multi-agent-research-assistant-two.vercel.app](https://multi-agent-research-assistant-two.vercel.app/)
 
@@ -10,7 +10,7 @@ Průběh je vidět přímo v aplikaci. U každého agenta se zobrazuje aktuáln�
 
 1. Zadejte téma nebo konkrétní otázku, například „Jaké jsou hlavní dopady obnovitelných zdrojů v Evropě?“
 2. Klikněte na **Spustit výzkum**. Aplikace použije Claude API klíč nastavený na serveru; vlastní klíč do webu nezadáváte.
-3. Sledujte práci agentů, nalezené zdroje a jednotlivá předání.
+3. Sledujte práci agentů, nalezené zdroje a jednotlivá předání. V kartě každého agenta můžete rozbalit jeho prompty a zprávy API.
 4. Přečtěte si závěrečnou zprávu včetně nejistot a citací; případně ji stáhněte jako soubor `.md`.
 
 Vyhledávání používá Perplexity Search API. Není-li jeho klíč dostupný, aplikace používá Wikipedii a OpenAlex. Výsledky vyhledávání obsahují titulky, odkazy a úryvky; aplikace nečte celé články. Závěry proto berte jako výzkumný přehled, u důležitých rozhodnutí ověřte primární zdroje.
@@ -37,16 +37,14 @@ Haiku je zde zvolen pro krátké kroky s nástrojem, extrakci a hodnocení podle
 
 ## Jak funguje orchestrace
 
-| Krok | Agent | Vstup | Akce | Výstup |
-| --- | --- | --- | --- | --- |
-| 1 | Výzkumník | Otázka | Claude Haiku povinně volá klientský tool `search_sources`; backend přímo zavolá Perplexity Search API a pošle `tool_result` zpět modelu. | JSON s poznatky a ID zdrojů |
-| 2 | Hodnotitel | Výzkum + zdroje | Claude Haiku načte projektový Skill `source-evaluation` do vlastního `system` promptu. | JSON s hodnocením kvality, slabinami důkazů a mezerami |
-| 3 | Analytik | Výzkum + hodnocení + zdroje | Claude Sonnet syntetizuje podložená tvrzení, rozpory a nejistoty. | JSON analýza |
-| 4 | Autor | Analýza + hodnocení + zdroje | Claude Sonnet napíše strukturovanou zprávu. | Markdown s citacemi `[S1]` atd. |
+1. Výzkumník použije `search_sources` nejméně dvakrát s různými dotazy, nejvýše třikrát. Backend provede každé hledání a vrátí modelu `tool_result`. Po skončení smí předat dál jen úplný JSON s tvrzeními a existujícími ID zdrojů.
+2. Hodnotitel dostane výzkum a zdroje. Před jeho voláním backend povinně spustí deterministický skript Skillu, který prověří metadata, dostupnost úryvků a ID zdrojů. Claude pak zdroje a tvrzení posoudí podle `SKILL.md`.
+3. Analytik dostane výzkum a validované hodnocení. Vrací hlavní body, rozpory, omezení a závěr.
+4. Autor z validované analýzy připraví Markdown s citacemi nalezených zdrojů. Useknutou nebo neplatnou zprávu aplikace nevydá jako hotovou.
 
-Předávání je explicitní ve `src/worker.js` v `runReal()`. Každý krok má vlastní systémový prompt a samostatné volání API. Artefakty jsou serializované do následujících `messages`; žádná role se neskrývá v jednom společném promptu. Frontend přijímá průběžné SSE události `agent_start`, `tool_call`, `tool_result`, `skill_loaded`, `agent_output`, `handoff`, `run_done` a `run_error`.
+Předávání je explicitní ve `src/worker.js` v `runReal()`. Každá role má vlastní systémový prompt a samostatné volání API. Server před handoffem kontroluje strukturu výstupu a ID zdrojů; při chybě odpověď omezeně zopakuje, nebo běh zastaví. `stop_reason: max_tokens` nikdy nepovažuje za dokončení. V UI jsou vidět záznamy volání bez API hlaviček a klíčů.
 
-Projektový Skill je v [`.cursor/skills/source-evaluation/SKILL.md`](.cursor/skills/source-evaluation/SKILL.md). Build vloží jeho **aktuální obsah** do serverového balíčku. Hodnotitel jej dostane jako součást `system` promptu; v UI se zároveň objeví událost `skill_loaded`. Skill má konkrétní rubric pro relevanci, autoritu, aktuálnost a nezávislost, pravidla pro úryvky a požadovaný JSON výstup.
+Projektový Skill je v [`.cursor/skills/source-evaluation/SKILL.md`](.cursor/skills/source-evaluation/SKILL.md). Jeho [skript](.cursor/skills/source-evaluation/scripts/evaluate.mjs) běží před hodnotitelem a build jej kopíruje do serverové aplikace. Hodnotitel dostane text Skillu v `system` promptu; jeho výstup pak projde kontrolou schématu, úplnosti a ID zdrojů. Skript sám neověřuje pravdivost článků.
 
 ## Souborová struktura
 
@@ -58,6 +56,7 @@ src/brand.css                              barevná vrstva rozhraní
 src/app.js                                 zobrazení průběhu
 api/run.mjs, api/health.mjs                Vercel Functions adapter
 .cursor/skills/source-evaluation/SKILL.md  vlastní Skill
+.cursor/skills/source-evaluation/scripts/evaluate.mjs  deterministická kontrola Skillu
 scripts/build.mjs                          sestavení balíčku bez závislostí
 scripts/dev.mjs                            místní server
 tests/pipeline.test.mjs                    test handoffů, Skillu a tool callu
@@ -77,13 +76,13 @@ npm test
 npm run build
 ```
 
-Test používá náhradní odpovědi externích API a kontroluje, že výzkumník vyvolá tool, Perplexity Search dodá zdroje s ID, hodnotitel obdrží Skill, správné modely jsou přiřazeny rolím a analytik i autor skutečně dostanou data předchozího kroku. Testuje také nepovolený původ požadavku, typ a velikost těla, nebezpečné odkazy, bezpečný chybový výstup a datovou hranici při podvrženém úryvku vyhledávání. Pro ověření živého AI běhu nastavte klíč Anthropic v `.env.local` a spusťte výzkum v UI.
+Testy používají náhradní odpovědi externích API. Ověřují více vyhledání, povinné spuštění skriptu Skillu, úplné handoffy, opravu neplatného hodnocení a odmítnutí useknuté zprávy nebo cizí citace. Kontrolují také vstup API, nebezpečné odkazy a to, že záznamy volání neobsahují klíče. Pro ověření živého AI běhu nastavte platný klíč Anthropic v `.env.local` a spusťte výzkum v UI.
 
 ## API a bezpečnost
 
 - `POST /api/run` přijímá pouze `{ "topic": "…" }` a vrací `text/event-stream`. Claude API klíč se čte výhradně ze serverového prostředí.
 - `GET /api/health` vrací základní stav aplikace.
-- Claude se volá přes `POST https://api.anthropic.com/v1/messages`, s top-level `system`, `messages`, `tools` a `tool_choice`. Klíč se nikdy neposílá do výstupních událostí.
+- Claude se volá přes `POST https://api.anthropic.com/v1/messages`, s top-level `system`, `messages`, `tools` a `tool_choice`. Do událostí se posílá tělo volání pro průhlednost, nikdy HTTP hlavičky s klíčem.
 - Vyhledávání volá přímo `POST https://api.perplexity.ai/search` s `PERPLEXITY_API_KEY`. Výsledky `results[]` se převádějí na zdroje `S1`, `S2` atd.
 - Výsledky vyhledávání jsou nedůvěryhodný vstup. UI je vykresluje přes `textContent`, URL zdrojů se omezuje na HTTP(S), systémové prompty upozorňují na prompt injection a Skill ukládá povinnost přiznat nejistotu.
 - Vstup API se kontroluje na typ, délku a původ prohlížeče; bezpečnostní hlavičky nastavuje `vercel.json`.
@@ -99,4 +98,4 @@ Zdrojový kód je v [GitHub repozitáři](https://github.com/LukasMitlener/Multi
 
 ## Známá omezení
 
-Vyhledávací nástroj poskytuje výsledky vyhledávání a bibliografické záznamy, neotvírá plné texty. Hodnotitel proto označuje takové zdroje `snippet_only` a snižuje jistotu. Bez Perplexity klíče je pokrytí omezeno na Wikipedii a OpenAlex. Výstupy modelu jsou částečně strukturované JSONem, ale aplikace ponechá surový text, pokud model JSON nedodrží.
+Vyhledávací nástroj poskytuje výsledky vyhledávání a bibliografické záznamy, neotvírá plné texty. Hodnotitel proto označuje takové zdroje `snippet_only` a snižuje jistotu. Bez Perplexity klíče je pokrytí omezeno na Wikipedii a OpenAlex. Kontrola struktury a ID zdrojů omezuje chybné handoffy, ale neprokazuje věcnou správnost tvrzení.

@@ -1,43 +1,43 @@
 # Jak aplikace plní zadání
 
-**Ověřeno 3. 11. 2026.** Níže je u každého požadavku místo v kódu nebo test, podle kterého jej lze zkontrolovat. Všech 13 uvedených bodů je implementováno. Automatické testy ověřují tok dat a volání API se simulovanými odpověďmi; neposuzují věcnou správnost každé výsledné zprávy.
+**Ověřeno 12. 11. 2026.** U každého požadavku je níže konkrétní místo v kódu nebo test. Automatické testy ověřují tok dat se simulovanými odpověďmi API. Neprokazují věcnou správnost výsledné rešerše ani platnost produkčního API klíče.
 
-## Agenti a výsledek
+## Agenti a výstup
 
-**Research agent.** Výzkumník si vyžádá nástroj `search_sources`. Funkce `searchSources()` získá titulky, odkazy a úryvky přes Perplexity Search API; bez jeho klíče hledá na Wikipedii a v OpenAlex. Výsledkům přiřadí ID `S1`, `S2` atd. a předá je modelu. Viz [`src/worker.js`](src/worker.js#L103-L153) a [test vyhledávání](tests/pipeline.test.mjs#L61-L90). Agent pracuje s výsledky hledání, plné články neotevírá.
+**Research agent.** Výzkumník používá `search_sources` v omezeném tool loopu: nejméně dvě různá hledání, nejvýše tři. `searchSources()` volá Perplexity Search API, případně Wikipedii a OpenAlex. Nalezené zdroje dostanou stabilní ID `S1`, `S2` atd. Výzkumník vrátí tvrzení s existujícími ID zdrojů. Viz [`src/worker.js`](src/worker.js) a [test tool loopu](tests/pipeline.test.mjs).
 
-**1. Analýza a syntéza.** Hodnotitel nejprve posoudí zdroje. Analytik pak v samostatném volání Claude dostane výzkum, hodnocení a seznam zdrojů; jeho systémový prompt požaduje hlavní body, rozpory, omezení a závěr. Viz [`runReal()`](src/worker.js#L214-L233). [Test pipeline](tests/pipeline.test.mjs#L8-L58) ověřuje, že analytik skutečně dostal výstup předchozího agenta.
+**1. Analýza a syntéza.** Analytik v samostatném volání dostává výzkum, validované hodnocení a zdroje. Musí vrátit neprázdné hlavní body s ID zdrojů, rozpory, omezení a závěr. Neplatný výstup se nepředá autorovi. Viz `validateAnalysis()` a `runReal()` v [`src/worker.js`](src/worker.js).
 
-**2. Autor zprávy.** Poslední volání Claude dostane analýzu, hodnocení a zdroje. Prompt žádá odpověď v Markdownu se zjištěními, nejistotami a odkazy ve tvaru `[S1]`. Web ukazuje autorův výstup a nabízí stažení `.md`. Viz [`src/worker.js`](src/worker.js#L235-L242), [`src/app.js`](src/app.js) a [test pipeline](tests/pipeline.test.mjs#L8-L58).
+**2. Autor zprávy.** Autor sestavuje Markdown s odpovědí, nejistotami a citacemi. Server ověřuje, že zpráva není prázdná a že citovaná ID existují. Při `stop_reason: max_tokens` požadavek zopakuje s vyšším limitem; částečnou zprávu neoznačí za hotovou. Viz `completeReport()` v [`src/worker.js`](src/worker.js) a [test useknuté odpovědi](tests/pipeline.test.mjs).
 
 ## API, zprávy a nástroj
 
-**3. AI API.** Funkce `callClaude()` posílá požadavky přímo na Anthropic Messages API. Vyhledávání může použít také Perplexity Search API. Viz [`src/worker.js`](src/worker.js#L85-L120). Úspěšný běh byl ověřen také na veřejném nasazení.
+**3. AI API.** `callClaude()` volá Anthropic Messages API; `searchSources()` volá Perplexity Search API, pokud má server jeho klíč. Obě funkce jsou v [`src/worker.js`](src/worker.js).
 
-**4. Přímé volání bez wrapperu.** Obě služby volá nativní `fetch()`. V [`package.json`](package.json) není LangChain ani jiná provozní knihovna pro orchestrace agentů.
+**4. Přímé volání bez wrapperu.** API volá nativní `fetch()`. [`package.json`](package.json) neobsahuje LangChain ani jiný agentní framework.
 
-**5. `messages`, systémový prompt a `tools`.** `callClaude()` sestavuje tělo požadavku z `model`, `system`, `messages` a případně `tools`. Výzkumník má vlastní systémový prompt; po vyhledání přidá do konverzace bloky `tool_use` a `tool_result`. Každá další role má samostatný prompt a zprávu s předanými daty. Viz [`src/worker.js`](src/worker.js#L85-L94) a [`runReal()`](src/worker.js#L186-L241). [Test pipeline](tests/pipeline.test.mjs#L8-L58) kontroluje těla požadavků. Ve webu jsou vidět kroky agentů a volání nástroje; samotné systémové prompty lze číst ve zdrojovém kódu.
+**5. `messages`, systémový prompt a `tools`.** Každé volání sestavuje samostatné `system` a `messages`; výzkumník navíc dostává `tools` a `tool_choice`. `tool_use` a `tool_result` se ukládají do jeho historie zpráv. Server posílá do UI události `llm_request` a `llm_response`; v kartě agenta lze rozbalit tělo požadavku a odpověď včetně `stop_reason`. API hlavičky a klíče se do těchto událostí nevkládají. Viz [`src/worker.js`](src/worker.js), [`src/app.js`](src/app.js) a [test trace](tests/pipeline.test.mjs).
 
-**11. Skutečné použití nástroje.** První volání Claude dostane schéma `search_sources` a `tool_choice`, které vyžaduje jeho použití. Backend poté provede vyhledávání a výsledek vrátí modelu jako `tool_result`. Viz [`src/worker.js`](src/worker.js#L189-L209) a [test s Perplexity](tests/pipeline.test.mjs#L61-L90).
+**11. Skutečné použití nástroje.** První dvě vyhledání vynucuje `tool_choice`. Backend každé volání `search_sources` skutečně provede a výsledek vrátí Claude jako `tool_result`. Třetí hledání je volitelné, potom už model další nástroj nedostane. Test kontroluje tři po sobě jdoucí volání nástroje a tři výsledky.
 
 ## Projektový Skill
 
-**6. Skill v aplikaci.** Skill `source-evaluation` je uložen v [`.cursor/skills/source-evaluation/SKILL.md`](.cursor/skills/source-evaluation/SKILL.md). [`scripts/build.mjs`](scripts/build.mjs) jej při sestavení vloží do serverové aplikace.
+**6. Skill v aplikaci.** Projektový [Skill](.cursor/skills/source-evaluation/SKILL.md) je součástí repozitáře. [`scripts/build.mjs`](scripts/build.mjs) vloží jeho text do serverového balíčku a zkopíruje jeho skript.
 
-**7. Vlastní dokumentace.** `SKILL.md` popisuje, kdy se použije, jak se hodnotí relevance a důvěryhodnost zdroje, co znamená `snippet_only`, jak má vypadat výstup v JSON a uvádí příklad.
+**7. Vlastní dokumentace.** `SKILL.md` popisuje hodnocení relevance, autority, aktuálnosti a nezávislosti, rozdíl mezi úryvkem a přečteným článkem, povinný formát JSON a hranici deterministické kontroly.
 
-**8. Použití hodnotitelem.** `runReal()` přidá text Skillu do systémového promptu hodnotitele a do živého záznamu odešle událost `skill_loaded`. [Test pipeline](tests/pipeline.test.mjs#L48-L54) kontroluje přítomnost pravidla `snippet_only` v promptu. Viz [`src/worker.js`](src/worker.js#L214-L223).
+**8. Vynucené použití Skillu.** Orchestrátor před hodnotitelem volá [`evaluateSources()`](.cursor/skills/source-evaluation/scripts/evaluate.mjs). Skript kontroluje metadata, dostupnost úryvku a ID zdrojů a tvrzení. Hodnotitel dostává výsledek skriptu i `SKILL.md` v systémovém promptu. `validateEvaluation()` pak vyžaduje hodnocení všech zdrojů a tvrzení, platná ID a skóre 0–3. Neúplné hodnocení se opraví nebo běh skončí chybou. Viz [test opravy hodnocení](tests/pipeline.test.mjs).
 
-## Orchestrace a předávání
+## Orchestrace a handoff
 
-**9. Samostatné role.** `runReal()` volá postupně výzkumníka, hodnotitele, analytika a autora. Celý běh obsahuje pět volání Claude, protože výzkumník po použití nástroje dostane ještě druhé volání pro zpracování zdrojů. Viz [`src/worker.js`](src/worker.js#L186-L242); [test](tests/pipeline.test.mjs#L8-L58) kontroluje pořadí.
+**9. Samostatné role.** `runReal()` spouští výzkumníka, hodnotitele, analytika a autora v tomto pořadí. Výzkumník má více volání kvůli tool loopu; každá další role má vlastní systémový prompt. Počet API volání závisí na počtu hledání a případných opravách výstupu.
 
-**10. Handoff.** Po výzkumníkovi, hodnotiteli a analytikovi aplikace odešle událost `handoff` s výstupem předchozího kroku. Tatáž data vloží do zprávy pro dalšího agenta. Web zobrazuje časovou osu a rozbalitelný výstup každé role. Viz [`src/worker.js`](src/worker.js#L210-L239), [`src/app.js`](src/app.js) a [test pořadí předání](tests/pipeline.test.mjs#L48-L52).
+**10. Předávání výsledků.** Po každé z prvních tří rolí vzniká událost `handoff` s výstupem, který dostane další agent ve svých `messages`. Handoff nastane až po serverové validaci daného artefaktu. [Testy](tests/pipeline.test.mjs) ověřují pořadí a také to, že prázdné hodnocení se nepředá analytikovi.
 
-**12. Pipeline přímo v kódu.** Pořadí rolí, samostatné prompty, vstupy a výstupy jsou v `runReal()`. Nejde o jeden prompt, který by jen popisoval čtyři role. Viz [`src/worker.js`](src/worker.js#L186-L242).
+**12. Explicitní pipeline.** Pořadí agentů, tool loop, volání Skillu, validace i předávání jsou samostatné kroky v `runReal()` v [`src/worker.js`](src/worker.js). Nejsou skryté v jednom promptu.
 
-## Jak si to ověřit
+## Jak ověřit
 
-Spusťte `npm test` a `npm run build`. Potom ve [veřejné aplikaci](https://multi-agent-research-assistant-two.vercel.app/) zadejte krátkou otázku. V časové ose uvidíte vyhledávání, načtení Skillu, tři předání a výstup každého agenta. Osm automatických testů prošlo; při jednom ověřeném produkčním běhu aplikace vrátila osm zdrojů, čtyři výstupy a tři předání.
+Spusťte `npm test` a `npm run build`. Aktuálních **13 automatických testů** pokrývá tool loop, skript Skillu, validaci handoffů, useknuté odpovědi, citace, API vstup a zobrazení promptů a zpráv. Živý běh vyžaduje platné serverové klíče; původně nastavený klíč Anthropic měl deklarovanou platnost sedm dní.
 
-Omezení a návrhy dalších kontrol popisuje [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
+Bezpečnostní omezení a další testy jsou v [SECURITY_REVIEW.md](SECURITY_REVIEW.md).

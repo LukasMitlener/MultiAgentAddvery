@@ -24,6 +24,7 @@ await mkdir(path.join(dist, 'server'), { recursive: true });
 await mkdir(path.join(dist, '.openai'), { recursive: true });
 await mkdir(publicDir, { recursive: true });
 await writeFile(path.join(dist, 'server', 'index.js'), output);
+await copyFile(path.join(root, '.cursor', 'skills', 'source-evaluation', 'scripts', 'evaluate.mjs'), path.join(dist, 'server', 'source-evaluation.mjs'));
 await copyFile(path.join(root, '.openai', 'hosting.json'), path.join(dist, '.openai', 'hosting.json'));
 await copyFile(path.join(root, 'src', 'index.html'), path.join(publicDir, 'index.html'));
 await copyFile(path.join(root, 'src', 'app.js'), path.join(publicDir, 'app.js'));

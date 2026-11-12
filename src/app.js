@@ -9,6 +9,7 @@ const report = document.querySelector('#report');
 const download = document.querySelector('#download');
 let count = 0;
 let reportText = '';
+const pendingCalls = new Map();
 
 document.querySelectorAll('[data-example]').forEach(button => button.addEventListener('click', () => {
   topicInput.value = button.dataset.example;
@@ -19,6 +20,7 @@ function label(name) { return ({ research: 'Výzkumník', critic: 'Hodnotitel', 
 function setStatus(text, kind = '') { status.textContent = text; status.className = `status-pill ${kind}`.trim(); }
 function reset() {
   count = 0; reportText = '';
+  pendingCalls.clear();
   timeline.replaceChildren(); sources.replaceChildren();
   report.textContent = 'Zpráva se objeví po dokončení práce všech čtyř agentů.';
   report.classList.add('empty-report');
@@ -30,8 +32,27 @@ function reset() {
     card.querySelector('.agent-state').textContent = 'Čeká';
     card.querySelector('.agent-step').textContent = 'Čeká na vstup';
     card.querySelector('.agent-output').textContent = '';
-    card.querySelector('details').open = false;
+    card.querySelector('.call-list').replaceChildren();
+    card.querySelectorAll('details').forEach(details => { details.open = false; });
   });
+}
+function showCallRequest(data) {
+  const list = agentCard(data.agent).querySelector('.call-list');
+  const item = document.createElement('details'); item.className = 'call-item';
+  const title = document.createElement('summary'); title.textContent = `${data.phase} · ${data.request.model} · čeká`;
+  const request = document.createElement('pre'); request.textContent = `REQUEST\n${JSON.stringify(data.request, null, 2)}`;
+  const answer = document.createElement('pre'); answer.textContent = 'RESPONSE\nČeká na model…';
+  item.append(title, request, answer); list.append(item);
+  pendingCalls.set(data.agent, { title, answer, phase: data.phase });
+  addEvent('LLM', `${label(data.agent)}: ${data.phase} (${data.request.model}).`);
+}
+function showCallResponse(data) {
+  const pending = pendingCalls.get(data.agent);
+  if (!pending) return;
+  pending.title.textContent = `${pending.phase} · ${data.stop_reason}`;
+  pending.answer.textContent = `RESPONSE · stop_reason: ${data.stop_reason}\n${JSON.stringify(data.content, null, 2)}`;
+  pendingCalls.delete(data.agent);
+  addEvent('LLM', `${label(data.agent)}: stop_reason ${data.stop_reason}.`);
 }
 function addEvent(kind, message) {
   const li = document.createElement('li');
@@ -70,12 +91,17 @@ function onEvent(type, data) {
     card.querySelector('.agent-step').textContent = data.step;
     addEvent(label(data.agent), data.step);
   }
+  if (type === 'llm_request') showCallRequest(data);
+  if (type === 'llm_response') showCallResponse(data);
   if (type === 'tool_call') addEvent('NÁSTROJ', `${label(data.agent)} volá ${data.tool}: „${data.input.query}“`);
   if (type === 'tool_result') {
     renderSources(data.result.sources || []);
-    addEvent('NÁSTROJ', `${data.tool} vrátil ${data.result.sources?.length || 0} zdrojů${data.result.provider_errors?.length ? `; ${data.result.provider_errors.length} poskytovatel selhal` : ''}.`);
+    addEvent('NÁSTROJ', `${data.tool} přidal ${data.result.new_sources?.length ?? data.result.sources?.length ?? 0} zdrojů; celkem ${data.result.sources?.length || 0}${data.result.provider_errors?.length ? `; ${data.result.provider_errors.length} poskytovatel selhal` : ''}.`);
   }
   if (type === 'skill_loaded') addEvent('SKILL', `${label(data.agent)} používá ${data.path}`);
+  if (type === 'skill_check') addEvent('SKILL', `Skript zkontroloval ${data.result.sources.length} zdrojů a ${data.result.claims.length} tvrzení.`);
+  if (type === 'validation_ok') addEvent('KONTROLA', `${label(data.agent)}: výstup prošel validací.`);
+  if (type === 'validation_error') addEvent('KONTROLA', `${label(data.agent)}: ${data.message}`);
   if (type === 'agent_output') {
     const card = agentCard(data.agent);
     card.classList.remove('active'); card.classList.add('done');
@@ -99,6 +125,7 @@ async function readEvents(response) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  let finished = false;
   while (true) {
     const { value, done } = await reader.read();
     buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
@@ -107,10 +134,14 @@ async function readEvents(response) {
       const frame = buffer.slice(0, split); buffer = buffer.slice(split + 2);
       const type = frame.match(/^event: (.+)$/m)?.[1];
       const raw = frame.match(/^data: (.+)$/m)?.[1];
-      if (type && raw) onEvent(type, JSON.parse(raw));
+      if (type && raw) {
+        onEvent(type, JSON.parse(raw));
+        if (type === 'run_done' || type === 'run_error') finished = true;
+      }
     }
     if (done) break;
   }
+  if (!finished) throw new Error('Přenos výsledku skončil před dokončením výzkumu.');
 }
 
 form.addEventListener('submit', async event => {

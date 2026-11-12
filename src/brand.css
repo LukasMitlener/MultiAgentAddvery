@@ -49,3 +49,7 @@ textarea::placeholder,input::placeholder{color:#75677e}
 .sources a:hover{color:#d38bf9}
 .report{color:#f0e6f5}
 footer{color:#877690}
+.call-list{max-height:400px;overflow:auto;margin-top:10px}
+.agent-card .call-item{margin:8px 0;padding:8px;border:1px solid #382845;border-radius:8px;background:#08070a}
+.agent-card .call-item summary{color:#e1b2ff;line-height:1.4}
+.call-item pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;color:#c9bad2;font:10px/1.5 'DM Mono',monospace}
