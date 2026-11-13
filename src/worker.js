@@ -81,7 +81,7 @@ function validateEvaluation(value, sources, findings) {
   requireValid(new Set(value.claims.map(item => item?.claim)).size === findings.length, 'Hodnotitel zopakoval tvrzení.');
   requireValid(value.claims.every(item => findings.some(finding => finding.claim === item?.claim)
     && ['supported', 'unsupported', 'conflicted'].includes(item.status)
-    && knownIds(item.source_ids, sources) && typeof item.note === 'string'), 'Hodnotitel vrátil neplatné posouzení tvrzení.');
+    && knownIds(item.source_ids, sources, item.status !== 'unsupported') && typeof item.note === 'string'), 'Hodnotitel vrátil neplatné posouzení tvrzení.');
   requireValid(isTextArray(value.gaps) && ['low', 'medium', 'high'].includes(value.overall_confidence), 'Hodnotitel nevrátil úplné shrnutí hodnocení.');
   return value;
 }

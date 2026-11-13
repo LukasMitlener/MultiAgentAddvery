@@ -23,6 +23,8 @@ Tato omezení zmenšují dopad podvrženého pokynu v nalezeném textu. Server n
 
 **Interní nástroje by vyžadovaly nové hranice přístupu.** Pokud aplikace někdy získá CRM, firemní dokumenty nebo e-mail, každý agent by měl mít jen oprávnění nutné pro svou roli. Výzkumník by například mohl číst schválené zdroje; autor odpovědi nepotřebuje přímý přístup k CRM. Pravidla musí vynucovat server. Odeslání zprávy, změna záznamu nebo export interních dat by měly vyžadovat schválení člověkem a záznam akce.
 
+**Prompty a zprávy jsou záměrně viditelné v UI.** Server do záznamu neposílá HTTP hlavičky ani API klíče. Do systémových promptů se proto nesmějí přidávat tajné údaje. Pokud by aplikace později pracovala s interními daty, bude nutné před zobrazením záznamu ověřit oprávnění uživatele a citlivé části skrýt.
+
 ## Další ověření
 
 Připravil bych sadu 20–50 neškodných podvržených pokynů a u každého zaznamenal, zda změnil cíl odpovědi, citaci nebo chování nástroje. Na vzorku hotových zpráv bych ručně porovnal citace s původními zdroji. Samostatně bych změřil cenu jednoho běhu, souběžné požadavky a chování při výpadku API. Po deklarovaném vypršení klíče za sedm dní je třeba ověřit jeho obnovu ve Vercelu.
